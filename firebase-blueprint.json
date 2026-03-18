@@ -1,0 +1,124 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role-based access control.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "teacher", "master"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "photoURL": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Extended student profile.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "registrationNumber": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive", "graduated"] },
+        "enrollmentDate": { "type": "string", "format": "date-time" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "cpf": { "type": "string" },
+        "church": { "type": "string" }
+      }
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Teacher profile details.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "bio": { "type": "string" },
+        "specialization": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "curriculum": { "type": "string" }
+      }
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Theological course details.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "teacherId": { "type": "string" }
+      }
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Daily attendance record.",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "presentStudents": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Question bank item.",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "correctOptionIndex": { "type": "integer" },
+        "category": { "type": "string" }
+      }
+    },
+    "Exam": {
+      "title": "Exam",
+      "description": "Online exam configuration.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "courseId": { "type": "string" },
+        "questions": { "type": "array", "items": { "type": "string" } },
+        "durationMinutes": { "type": "integer" },
+        "active": { "type": "boolean" }
+      }
+    },
+    "ExamResult": {
+      "title": "ExamResult",
+      "description": "Student exam performance.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "examId": { "type": "string" },
+        "score": { "type": "number" },
+        "answers": { "type": "array" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "FinancialRecord": {
+      "title": "FinancialRecord",
+      "description": "Payments and expenses.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "studentId": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/students/{studentId}": { "schema": "Student", "description": "Student details" },
+    "/courses/{courseId}": { "schema": "Course", "description": "Courses" },
+    "/attendance/{attendanceId}": { "schema": "Attendance", "description": "Attendance logs" },
+    "/questions/{questionId}": { "schema": "Question", "description": "Question bank" },
+    "/exams/{examId}": { "schema": "Exam", "description": "Exams" },
+    "/examResults/{resultId}": { "schema": "ExamResult", "description": "Exam results" },
+    "/finances/{recordId}": { "schema": "FinancialRecord", "description": "Financial records" }
+  }
+}

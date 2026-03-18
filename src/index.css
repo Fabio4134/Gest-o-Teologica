@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-50: var(--primary-50);
+  --color-primary-100: var(--primary-100);
+  --color-primary-500: var(--primary-500);
+  --color-primary-600: var(--primary-600);
+  --color-primary-700: var(--primary-700);
+  --color-primary-900: var(--primary-900);
+  
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Outfit', sans-serif;
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl;
+  }
+  .glass-dark {
+    @apply bg-stone-900/80 backdrop-blur-xl border border-stone-800/50 shadow-2xl;
+  }
+  .glass-panel {
+    @apply bg-white/40 backdrop-blur-2xl border border-white/50 shadow-2xl;
+  }
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #f8fafc;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6, .serif {
+  font-family: var(--font-serif);
+}
