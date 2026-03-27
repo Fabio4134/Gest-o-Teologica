@@ -1,14 +1,16 @@
 import React, { useContext, useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, AuthContext, LoginView } from './components/Auth';
 import { Layout } from './components/Layout';
 import { LandingPage } from './components/LandingPage';
 import { supabase } from './supabaseClient';
 import { UserProfile, Course, StudentDetails, Attendance, Question, Exam, ExamResult, FinancialRecord, TeacherDetails } from './types';
-import { LogIn, LogOut, GraduationCap, BookOpen, Users, ClipboardCheck, FileText, DollarSign, BarChart3, Download, Plus, Trash2, CheckCircle2, XCircle, Search, Filter, Clock, Calendar, Award, AlertCircle } from 'lucide-react';
+import { LogIn, LogOut, GraduationCap, BookOpen, Users, ClipboardCheck, FileText, DollarSign, BarChart3, Download, Plus, Trash2, CheckCircle2, XCircle, Search, Filter, Clock, Calendar, Award, AlertCircle, UserCog, Edit3, ArrowRight, ChevronRight, FileUp, Sparkles, Wand2, FileSearch, FileSpreadsheet, Check, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import jsPDF from 'jspdf';
+import { QuizTheosPro } from './components/QuizTheosPro';
 import 'jspdf-autotable';
 
 // --- Error Boundary ---
@@ -110,7 +112,7 @@ const Dashboard = () => {
 
   const data = [
     { name: 'Alunos', value: stats.students },
-    { name: 'Cursos', value: stats.courses },
+    { name: 'Disciplinas', value: stats.courses },
     { name: 'Provas', value: stats.exams },
   ];
 
@@ -123,7 +125,7 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard icon={Users} label="Total de Alunos" value={stats.students} color="bg-blue-500" />
-        <StatCard icon={BookOpen} label="Cursos Ativos" value={stats.courses} color="bg-[var(--color-primary-500)]" />
+        <StatCard icon={BookOpen} label="Disciplinas Ativas" value={stats.courses} color="bg-[var(--color-primary-500)]" />
         <StatCard icon={FileText} label="Provas Realizadas" value={stats.exams} color="bg-amber-500" />
         <StatCard icon={DollarSign} label="Saldo Financeiro" value={`R$ ${stats.income.toFixed(2)}`} color="bg-purple-500" />
       </div>
@@ -187,8 +189,10 @@ const SubjectsView = () => {
   const { user } = useContext(AuthContext);
   const [subjects, setSubjects] = useState<Course[]>([]);
   const [isAdding, setIsAdding] = useState(false);
-  const [newSubject, setNewSubject] = useState({ name: '', description: '', teacherId: '' });
+  const [editingSubject, setEditingSubject] = useState<Course | null>(null);
+  const [formData, setFormData] = useState({ name: '', description: '' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [modal, setModal] = useState<{ show: boolean, title: string, message: string, onConfirm?: () => void, type: 'alert' | 'confirm' }>({ show: false, title: '', message: '', type: 'alert' });
 
@@ -221,19 +225,36 @@ const SubjectsView = () => {
   }, []);
 
   const handleAdd = async () => {
-    if (!newSubject.name) return;
+    if (!formData.name) return;
     const { error } = await supabase
       .from('subjects')
       .insert([{ 
-        name: newSubject.name, 
-        description: newSubject.description, 
+        name: formData.name, 
+        description: formData.description, 
         teacher_id: user?.uid 
       }]);
     
     if (error) handleSupabaseError(error, OperationType.CREATE, 'subjects');
     else {
       setIsAdding(false);
-      setNewSubject({ name: '', description: '', teacherId: '' });
+      setFormData({ name: '', description: '' });
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingSubject || !formData.name) return;
+    const { error } = await supabase
+      .from('subjects')
+      .update({ 
+        name: formData.name, 
+        description: formData.description 
+      })
+      .eq('id', editingSubject.id);
+    
+    if (error) handleSupabaseError(error, OperationType.UPDATE, 'subjects');
+    else {
+      setEditingSubject(null);
+      setFormData({ name: '', description: '' });
     }
   };
 
@@ -273,11 +294,13 @@ const SubjectsView = () => {
 
   const filteredSubjects = subjects.filter(s => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.description.toLowerCase().includes(searchTerm.toLowerCase())
+    (s.description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   ).sort((a, b) => a.name.localeCompare(b.name));
 
+  const currentSubject = subjects.find(s => s.id === selectedId) || null;
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col lg:flex-row gap-0 items-start bg-white rounded-3xl border border-stone-200 shadow-xl overflow-hidden min-h-[calc(100vh-140px)]">
       {modal.show && (
         <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white max-w-sm w-full rounded-2xl shadow-2xl p-6 border border-stone-100">
@@ -286,8 +309,8 @@ const SubjectsView = () => {
             <div className="flex gap-3">
               {modal.type === 'confirm' && (
                 <button 
-                  onClick={() => { modal.onConfirm?.(); setModal({ ...modal, show: false }); }}
-                  className="flex-1 bg-[var(--color-primary-600)] text-white py-2 rounded-xl font-bold text-[var(--color-primary-600)] transition-all"
+                   onClick={() => { modal.onConfirm?.(); setModal({ ...modal, show: false }); }}
+                   className="flex-1 bg-[var(--color-primary-600)] text-white py-2 rounded-xl font-bold transition-all"
                 >
                   Confirmar
                 </button>
@@ -302,101 +325,199 @@ const SubjectsView = () => {
           </div>
         </div>
       )}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-stone-900">Disciplinas</h2>
-          <p className="text-stone-500 italic serif">Gerencie as disciplinas do curso</p>
+
+      {/* Sidebar de Disciplinas (Esquerda) (Padronizada) */}
+      <aside className="w-full lg:w-80 shrink-0 border-r border-stone-100 flex flex-col h-[calc(100vh-140px)] bg-white">
+        <div className="p-4 border-b border-stone-100 flex justify-between items-center shrink-0">
+          <h3 className="font-bold text-stone-800 text-base">Disciplinas</h3>
+          <button 
+             onClick={() => setIsAdding(true)}
+             className="w-8 h-8 rounded-lg bg-stone-50 text-stone-400 hover:bg-stone-100 hover:text-stone-900 transition-all flex items-center justify-center font-bold"
+          >
+            <Plus size={18} />
+          </button>
         </div>
-        {user?.role === 'master' && (
-          <div className="flex gap-2">
-            <button 
-              onClick={importStandardSubjects}
-              className="flex items-center gap-2 bg-stone-100 text-stone-600 px-4 py-2 rounded-xl hover:bg-stone-200 transition-all font-bold"
-            >
-              <Download size={20} /> Importar Padrão
-            </button>
-            <button 
-              onClick={() => setIsAdding(true)}
-              className="flex items-center gap-2 bg-[var(--color-primary-600)] text-white px-4 py-2 rounded-xl text-[var(--color-primary-600)] transition-all shadow-lg shadow-[var(--color-primary-500)]/20"
-            >
-              <Plus size={20} /> Nova Disciplina
-            </button>
+        
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+          {filteredSubjects.map(s => {
+            const isSelected = selectedId === s.id;
+            return (
+              <motion.div
+                key={s.id}
+                layout
+                onClick={() => setSelectedId(s.id)}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer group relative overflow-hidden ${
+                  isSelected 
+                    ? 'bg-[#B45309] border-[#B45309] text-white shadow-lg shadow-amber-900/10' 
+                    : 'bg-white border-stone-100 hover:border-stone-200 text-stone-600'
+                }`}
+              >
+                <div className="flex gap-4 items-center relative z-10">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-stone-50 text-stone-400 group-hover:bg-stone-100'
+                  }`}>
+                    <BookOpen size={20} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className={`text-sm font-bold truncate ${isSelected ? 'text-white' : 'text-stone-800'}`}>
+                      {s.name}
+                    </h4>
+                    <p className={`text-[10px] font-medium uppercase tracking-widest truncate ${isSelected ? 'text-white/70' : 'text-stone-400'}`}>
+                      CARREGANDO QUESTÕES
+                    </p>
+                  </div>
+                  {isSelected && (
+                    <div className="flex items-center gap-1 shrink-0 animate-in fade-in slide-in-from-right-2">
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); setEditingSubject(s); setFormData({ name: s.name, description: s.description || '' }); }}
+                         className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
+                       >
+                         <Edit3 size={14} />
+                       </button>
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); showConfirm('Excluir', `Deseja permanentemente excluir "${s.name}"? Esta ação não pode ser desfeita.`, async () => {
+                           const { error } = await supabase.from('subjects').delete().eq('id', s.id);
+                           if (error) handleSupabaseError(error, OperationType.DELETE, 'subjects');
+                         }); }}
+                         className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
+                       >
+                         <Trash2 size={14} />
+                       </button>
+                       <ArrowRight size={14} className="ml-1 opacity-70" />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <div className="p-4 border-t border-stone-100 shrink-0">
+          <button 
+            onClick={importStandardSubjects}
+            className="w-full flex items-center justify-center gap-2 bg-stone-50 text-stone-500 px-4 py-3 rounded-xl hover:bg-stone-100 transition-all text-[10px] font-bold uppercase tracking-widest border border-stone-100"
+          >
+            <Download size={14} /> Importar Base
+          </button>
+        </div>
+      </aside>
+
+      {/* Conteúdo à Direita (Detalhes) */}
+      <main className="flex-1 flex flex-col h-[calc(100vh-140px)] bg-stone-50/30">
+        {currentSubject ? (
+          <>
+            <div className="p-6 border-b border-stone-100 bg-white flex justify-between items-center">
+              <div>
+                <div className="flex items-center gap-2 text-[10px] text-stone-400 uppercase tracking-widest mb-1">
+                  <span>Disciplinas</span>
+                  <span>&gt;</span>
+                  <span>Instituto de Ensino Teológico</span>
+                </div>
+                <h2 className="text-xl font-bold text-stone-900">{currentSubject.name}</h2>
+              </div>
+              <div className="flex gap-2">
+                <button className="flex items-center gap-2 bg-white text-stone-600 px-4 py-2.5 rounded-xl text-sm font-bold border border-stone-200 hover:bg-stone-50 transition-all">
+                  <Download size={16} /> Importar Lote
+                </button>
+                <button className="flex items-center gap-2 bg-[#B45309] text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-amber-900/10 hover:scale-[1.02] transition-all">
+                  <Plus size={16} /> Nova Questão
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+               <div className="w-16 h-1 w-16 h-1 mb-8 opacity-20">
+                  <div className="w-full h-px bg-stone-400 mb-1" />
+                  <div className="w-full h-px bg-stone-400 mb-1" />
+                  <div className="w-full h-px bg-stone-400" />
+               </div>
+               <p className="text-stone-400 text-sm mb-4">Nenhuma questão cadastrada nesta disciplina</p>
+               <button 
+                 onClick={() => setIsAdding(true)}
+                 className="flex items-center gap-2 text-[var(--color-primary-600)] font-bold text-sm hover:underline"
+               >
+                 <Plus size={16} /> Adicionar primeira questão
+               </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-12 text-center text-stone-400 italic">
+            Selecione uma disciplina para ver os detalhes
           </div>
         )}
-      </div>
 
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
-        <input 
-          className="w-full pl-12 pr-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none bg-white"
-          placeholder="Buscar disciplinas..."
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-        />
-      </div>
-
-      {isAdding && (
-        <div className="bg-white p-6 rounded-2xl border border-[var(--color-primary-500)] shadow-sm space-y-4">
-          <input 
-            className="w-full p-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none"
-            placeholder="Nome da Disciplina"
-            value={newSubject.name}
-            onChange={e => setNewSubject({ ...newSubject, name: e.target.value })}
-          />
-          <textarea 
-            className="w-full p-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none"
-            placeholder="Descrição"
-            value={newSubject.description}
-            onChange={e => setNewSubject({ ...newSubject, description: e.target.value })}
-          />
-          <div className="flex gap-2">
-            <button onClick={handleAdd} className="bg-[var(--color-primary-600)] text-white px-6 py-2 rounded-xl font-medium">Salvar</button>
-            <button onClick={() => setIsAdding(false)} className="bg-stone-100 text-stone-600 px-6 py-2 rounded-xl font-medium">Cancelar</button>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredSubjects.map(subject => (
-          <div key={subject.id} className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 text-[var(--color-primary-600)] transition-colors group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 bg-stone-100 rounded-xl flex items-center justify-center text-stone-500 group-hover:text-[var(--color-primary-600)] group-hover:text-[var(--color-primary-600)] transition-colors">
-                <BookOpen size={24} />
-              </div>
-              {user?.role === 'master' && (
-                <button onClick={async () => {
-                  const { error } = await supabase.from('subjects').delete().eq('id', subject.id);
-                  if (error) handleSupabaseError(error, OperationType.DELETE, 'subjects');
-                }} className="text-stone-300 hover:text-red-500 transition-colors">
-                  <Trash2 size={18} />
-                </button>
-              )}
+        {/* Modal de Adição/Edição (Mantido mas estilizado como no padrão) */}
+        <AnimatePresence>
+          {(isAdding || editingSubject) && (
+            <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white max-w-2xl w-full rounded-3xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 border-b border-stone-100 flex justify-between items-center bg-stone-50">
+                  <h3 className="text-xl font-bold text-stone-900">{editingSubject ? 'Editar Disciplina' : 'Nova Disciplina'}</h3>
+                  <button 
+                    onClick={() => { setIsAdding(false); setEditingSubject(null); setFormData({ name: '', description: '' }); }}
+                    className="text-stone-400 hover:text-stone-600 p-2"
+                  >
+                    <XCircle size={24} />
+                  </button>
+                </div>
+                <div className="p-8 space-y-6">
+                   <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-stone-400 uppercase tracking-widest ml-1">Nome da Matéria</label>
+                        <input 
+                          className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white transition-all"
+                          placeholder="Ex: Teologia Sistemática"
+                          value={formData.name}
+                          onChange={e => setFormData({ ...formData, name: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-stone-400 uppercase tracking-widest ml-1">Ementa / Descrição</label>
+                        <textarea 
+                          className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white min-h-[140px] transition-all"
+                          placeholder="Descreva os tópicos abordados nesta disciplina..."
+                          value={formData.description}
+                          onChange={e => setFormData({ ...formData, description: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-4 pt-4">
+                      <button 
+                        onClick={editingSubject ? handleUpdate : handleAdd} 
+                        className="flex-1 bg-stone-900 text-white py-4 rounded-2xl font-bold shadow-xl hover:bg-stone-800 transition-all"
+                      >
+                        {editingSubject ? 'Salvar Alterações' : 'Criar Disciplina'}
+                      </button>
+                      <button 
+                        onClick={() => { setIsAdding(false); setEditingSubject(null); setFormData({ name: '', description: '' }); }} 
+                        className="flex-1 bg-stone-100 text-stone-600 py-4 rounded-2xl font-bold hover:bg-stone-200 transition-all"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                </div>
+              </motion.div>
             </div>
-            <h4 className="text-lg font-bold text-stone-900 mb-2">{subject.name}</h4>
-            <p className="text-sm text-stone-500 line-clamp-3 mb-4">{subject.description}</p>
-          </div>
-        ))}
-      </div>
+          )}
+        </AnimatePresence>
+      </main>
     </div>
   );
 };
 
 // --- Enrollment View ---
 const EnrollmentView = () => {
-  const [feedback, setFeedback] = useState('');
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
     const email = formData.get('email') as string;
     const displayName = formData.get('displayName') as string;
-
-    // In Supabase, we usually create the user via Auth first, 
-    // but for enrollment by an admin, we might need a different flow 
-    // or just insert into public.users if they will log in later.
-    // For now, let's assume we are just creating the public profiles.
-    
-    // Generate a temporary ID if we don't have one (though usually it comes from auth)
     const tempId = crypto.randomUUID();
 
     const { error: userError } = await supabase.from('users').insert([{
@@ -429,61 +550,80 @@ const EnrollmentView = () => {
       return;
     }
 
-    setFeedback('Matrícula realizada com sucesso!');
-    setTimeout(() => setFeedback(''), 3000);
+    setFeedback({ type: 'success', msg: 'Matrícula realizada com sucesso!' });
+    setTimeout(() => setFeedback(null), 3000);
     e.currentTarget.reset();
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      {feedback && (
-        <div className="text-[var(--color-primary-600)] text-[var(--color-primary-600)] p-4 rounded-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-4">
-          <CheckCircle2 size={20} /> {feedback}
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-4xl mx-auto space-y-8"
+    >
+      <header className="flex justify-between items-end">
+        <div>
+          <h2 className="text-3xl font-bold text-stone-900 tracking-tight">Nova Matrícula</h2>
+          <p className="text-stone-500 italic serif">Portal de ingresso para novos acadêmicos</p>
         </div>
-      )}
-      <header>
-        <h2 className="text-2xl font-bold text-stone-900">Nova Matrícula</h2>
-        <p className="text-stone-500 italic serif">Cadastre um novo aluno no sistema</p>
+        <AnimatePresence>
+          {feedback && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-green-100 text-green-700 px-4 py-2 rounded-xl font-bold flex items-center gap-2 border border-green-200"
+            >
+              <CheckCircle2 size={18} /> {feedback.msg}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
-      <div className="bg-white p-8 rounded-3xl shadow-xl border border-stone-100">
-        <form onSubmit={handleSave} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-stone-500 uppercase">Nome Completo</label>
-              <input name="displayName" required className="w-full p-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none" />
+      <div className="glass-card p-10 rounded-3xl border border-stone-200/50 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--color-primary-500)]/5 rounded-full -mr-32 -mt-32 blur-3xl" />
+        <form onSubmit={handleSave} className="space-y-8 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Nome Completo</label>
+              <input name="displayName" required className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white/50 backdrop-blur-sm transition-all" placeholder="Digite o nome completo do aluno" />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-stone-500 uppercase">Email</label>
-              <input name="email" type="email" required className="w-full p-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none" />
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Email Institucional</label>
+              <input name="email" type="email" required className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white/50 backdrop-blur-sm transition-all" placeholder="exemplo@igreja.com" />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-stone-500 uppercase">Telefone</label>
-              <input name="phone" className="w-full p-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none" />
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Telefone de Contato</label>
+              <input name="phone" className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white/50 backdrop-blur-sm transition-all" placeholder="(00) 00000-0000" />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-stone-500 uppercase">CPF</label>
-              <input name="cpf" className="w-full p-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none" />
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">CPF</label>
+              <input name="cpf" className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white/50 backdrop-blur-sm transition-all" placeholder="000.000.000-00" />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-stone-500 uppercase">Data de Nascimento</label>
-              <input name="birthDate" type="date" className="w-full p-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none" />
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Data de Nascimento</label>
+              <input name="birthDate" type="date" className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white/50 backdrop-blur-sm transition-all" />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-stone-500 uppercase">Igreja</label>
-              <input name="church" className="w-full p-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none" />
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Comunidade Cristã / Igreja</label>
+              <input name="church" className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white/50 backdrop-blur-sm transition-all" placeholder="Nome da congregação" />
             </div>
-            <div className="md:col-span-2 space-y-1">
-              <label className="text-xs font-bold text-stone-500 uppercase">Endereço</label>
-              <input name="address" className="w-full p-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none" />
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Endereço Residencial</label>
+              <input name="address" className="w-full p-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white/50 backdrop-blur-sm transition-all" placeholder="Rua, Número, Bairro, Cidade" />
             </div>
           </div>
-          <button type="submit" className="w-full bg-[var(--color-primary-600)] text-white py-4 rounded-xl font-bold text-[var(--color-primary-600)] transition-all shadow-lg shadow-[var(--color-primary-500)]/20">
-            Confirmar Matrícula
-          </button>
+          <motion.button 
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            type="submit" 
+            className="w-full bg-stone-900 text-white py-5 rounded-2xl font-bold text-lg shadow-2xl shadow-stone-900/20 hover:bg-stone-800 transition-all mt-4"
+          >
+            Finalizar Cadastro & Matricular
+          </motion.button>
         </form>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -491,113 +631,436 @@ const EnrollmentView = () => {
 const QuestionBankView = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isAdding, setIsAdding] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [newQuestion, setNewQuestion] = useState<Partial<Question>>({ text: '', options: ['', '', '', ''], correctOptionIndex: 0, category: 'Geral' });
+  const [subjects, setSubjects] = useState<Course[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   useEffect(() => {
-    const fetchQuestions = async () => {
-      const { data, error } = await supabase.from('questions').select('*');
-      if (error) handleSupabaseError(error, OperationType.GET, 'questions');
-      else setQuestions(data || []);
+    const fetchData = async () => {
+      const { data: qData } = await supabase.from('questions').select('*');
+      setQuestions(qData || []);
+      const { data: sData } = await supabase.from('subjects').select('*').order('name');
+      setSubjects(sData || []);
+      if (sData && sData.length > 0 && !selectedSubjectId) {
+        setSelectedSubjectId(sData[0].id);
+      }
     };
-    fetchQuestions();
+    fetchData();
 
-    const channel = supabase
-      .channel('questions_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => {
-        fetchQuestions();
-      })
-      .subscribe();
-
+    const channel = supabase.channel('questions_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, fetchData).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const handleAdd = async () => {
-    if (!newQuestion.text) return;
-    const { error } = await supabase.from('questions').insert([newQuestion]);
-    if (error) handleSupabaseError(error, OperationType.CREATE, 'questions');
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const qData = editingQuestion || newQuestion;
+    if (!qData.text) return;
+    
+    const { error } = await supabase.from('questions').upsert([{
+      id: editingQuestion?.id || crypto.randomUUID(),
+      text: qData.text,
+      options: qData.options,
+      correct_option_index: qData.correctOptionIndex,
+      category: qData.category,
+      subject_id: qData.subjectId
+    }]);
+
+    if (error) handleSupabaseError(error, OperationType.WRITE, 'questions');
     else {
       setIsAdding(false);
+      setEditingQuestion(null);
       setNewQuestion({ text: '', options: ['', '', '', ''], correctOptionIndex: 0, category: 'Geral' });
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-stone-900">Banco de Questões</h2>
-          <p className="text-stone-500 italic serif">Repositório de perguntas para avaliações</p>
-        </div>
-        <button 
-          onClick={() => setIsAdding(true)}
-          className="bg-[var(--color-primary-600)] text-white px-4 py-2 rounded-xl flex items-center gap-2"
-        >
-          <Plus size={20} /> Nova Questão
-        </button>
-      </div>
+  const handleDelete = async (id: string) => {
+    if (confirm('Deseja excluir esta questão?')) {
+      const { error } = await supabase.from('questions').delete().eq('id', id);
+      if (error) handleSupabaseError(error, OperationType.DELETE, 'questions');
+    }
+  };
 
-      {isAdding && (
-        <div className="bg-white p-6 rounded-2xl border border-[var(--color-primary-500)] shadow-xl space-y-4">
-          <textarea 
-            className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-[var(--color-primary-500)]"
-            placeholder="Texto da Questão"
-            value={newQuestion.text}
-            onChange={e => setNewQuestion({ ...newQuestion, text: e.target.value })}
-          />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {newQuestion.options?.map((opt, idx) => (
-              <div key={idx} className="flex gap-2 items-center">
-                <input 
-                  type="radio" 
-                  name="correct" 
-                  checked={newQuestion.correctOptionIndex === idx}
-                  onChange={() => setNewQuestion({ ...newQuestion, correctOptionIndex: idx })}
-                />
-                <input 
-                  className="flex-1 p-2 rounded-lg border border-stone-200 outline-none"
-                  placeholder={`Opção ${String.fromCharCode(65 + idx)}`}
-                  value={opt}
-                  onChange={e => {
-                    const opts = [...(newQuestion.options || [])];
-                    opts[idx] = e.target.value;
-                    setNewQuestion({ ...newQuestion, options: opts });
+  const filteredQuestions = questions.filter(q => 
+    (!selectedSubjectId || q.subject_id === selectedSubjectId) &&
+    q.text.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const selectedSubject = subjects.find(s => s.id === selectedSubjectId);
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-0 items-start bg-white rounded-3xl border border-stone-200 shadow-xl overflow-hidden min-h-[calc(100vh-140px)]">
+      {/* Sidebar de Disciplinas (Mesmo padrão do SubjectsView) */}
+      <aside className="w-full lg:w-80 shrink-0 border-r border-stone-100 flex flex-col h-[calc(100vh-140px)] bg-white">
+        <div className="p-4 border-b border-stone-100 flex justify-between items-center shrink-0">
+          <h3 className="font-bold text-stone-800 text-base">Disciplinas</h3>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+          {subjects.map(s => {
+            const isSelected = selectedSubjectId === s.id;
+            const subjectQuestionsCount = questions.filter(q => q.subject_id === s.id).length;
+            
+            return (
+              <motion.div
+                key={s.id}
+                layout
+                onClick={() => setSelectedSubjectId(s.id)}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer group relative overflow-hidden ${
+                  isSelected 
+                    ? 'bg-[#B45309] border-[#B45309] text-white shadow-lg shadow-amber-900/10' 
+                    : 'bg-white border-stone-100 hover:border-stone-200 text-stone-600'
+                }`}
+              >
+                <div className="flex gap-4 items-center relative z-10">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-stone-50 text-stone-400 group-hover:bg-stone-100'
+                  }`}>
+                    <BookOpen size={20} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className={`text-sm font-bold truncate ${isSelected ? 'text-white' : 'text-stone-800'}`}>
+                      {s.name}
+                    </h4>
+                    <p className={`text-[10px] font-medium uppercase tracking-widest truncate ${isSelected ? 'text-white/70' : 'text-stone-400'}`}>
+                      {subjectQuestionsCount} QUESTÕES CADASTRADAS
+                    </p>
+                  </div>
+                  {isSelected && <ChevronRight size={14} className="opacity-70" />}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </aside>
+
+      {/* Conteúdo Principal (Questões) */}
+      <main className="flex-1 flex flex-col h-[calc(100vh-140px)] bg-stone-50/30">
+        <div className="p-6 border-b border-stone-100 bg-white flex justify-between items-center">
+          <div>
+            <div className="flex items-center gap-2 text-[10px] text-stone-400 uppercase tracking-widest mb-1">
+              <span>Banco de Questões</span>
+              <span>&gt;</span>
+              <span>{selectedSubject?.name || 'Geral'}</span>
+            </div>
+            <h2 className="text-xl font-bold text-stone-900">Gerenciar Questões</h2>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setShowImportDialog(true)}
+              className="flex items-center gap-2 bg-white text-stone-600 px-4 py-2.5 rounded-xl text-sm font-bold border border-stone-200 hover:bg-stone-50 transition-all font-sans"
+            >
+              <Download size={16} /> Importar Arquivo
+            </button>
+            <button 
+              onClick={() => setShowAIAssistant(true)}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-900/10 hover:bg-indigo-700 hover:scale-[1.02] transition-all"
+            >
+              <Award size={16} className="text-indigo-200" /> IA Especialista
+            </button>
+            <button 
+              onClick={() => {
+                setNewQuestion({ ...newQuestion, subjectId: selectedSubjectId || '' });
+                setIsAdding(true);
+              }}
+              className="flex items-center gap-2 bg-[#B45309] text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-amber-900/10 hover:scale-[1.02] transition-all"
+            >
+              <Plus size={16} /> Nova Questão
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 border-b border-stone-100 bg-white">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+            <input 
+              className="w-full pl-12 pr-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-4 focus:ring-stone-100 transition-all text-sm"
+              placeholder="Pesquisar questões..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+          <AnimatePresence>
+            {(isAdding || editingQuestion) && (
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="glass-card p-8 rounded-3xl border border-[var(--color-primary-500)]/30 shadow-2xl space-y-6 bg-white"
+              >
+                <form onSubmit={handleSave} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Enunciado da Questão</label>
+                      <textarea 
+                        className="w-full p-4 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-[var(--color-primary-500)]/10 bg-white min-h-[100px]"
+                        placeholder="Digite a pergunta da questão..."
+                        value={editingQuestion?.text || newQuestion.text}
+                        onChange={e => editingQuestion ? setEditingQuestion({...editingQuestion, text: e.target.value}) : setNewQuestion({...newQuestion, text: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Disciplina</label>
+                      <select 
+                        className="w-full p-4 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-[var(--color-primary-500)]/10 bg-white"
+                        value={editingQuestion?.subjectId || newQuestion.subjectId}
+                        onChange={e => editingQuestion ? setEditingQuestion({...editingQuestion, subjectId: e.target.value}) : setNewQuestion({...newQuestion, subjectId: e.target.value})}
+                      >
+                        <option value="">Selecione a disciplina...</option>
+                        {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Opção Correta (0-3)</label>
+                      <select 
+                        className="w-full p-4 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-[var(--color-primary-500)]/10 bg-white cursor-pointer"
+                        value={editingQuestion?.correctOptionIndex || newQuestion.correctOptionIndex}
+                        onChange={e => {
+                          const idx = parseInt(e.target.value);
+                          editingQuestion ? setEditingQuestion({...editingQuestion, correctOptionIndex: idx}) : setNewQuestion({...newQuestion, correctOptionIndex: idx});
+                        }}
+                      >
+                        {[0,1,2,3].map(i => <option key={i} value={i}>Opção {i + 1}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[0,1,2,3].map(i => (
+                      <div key={i} className="space-y-1">
+                        <label className="text-[10px] font-bold text-stone-400 uppercase ml-1">Alternativa {i + 1}</label>
+                        <input 
+                          className={`w-full p-4 rounded-2xl border outline-none transition-all ${
+                            (editingQuestion?.correctOptionIndex === i || newQuestion.correctOptionIndex === i) 
+                              ? 'border-[#B45309] bg-amber-50/30 ring-2 ring-amber-500/10' 
+                              : 'border-stone-200 focus:border-stone-400 bg-white'
+                          }`}
+                          placeholder={`Digite a opção ${i + 1}`}
+                          value={editingQuestion?.options[i] || newQuestion.options?.[i] || ''}
+                          onChange={e => {
+                            const opts = [...(editingQuestion?.options || newQuestion.options || [])];
+                            opts[i] = e.target.value;
+                            editingQuestion ? setEditingQuestion({...editingQuestion, options: opts}) : setNewQuestion({...newQuestion, options: opts});
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-4 pt-4 border-t border-stone-100">
+                    <button type="submit" className="flex-1 bg-[#B45309] text-white py-4 rounded-2xl font-bold shadow-xl shadow-amber-900/10 hover:scale-[1.01] transition-all">Salvar Questão</button>
+                    <button type="button" onClick={() => { setIsAdding(false); setEditingQuestion(null); }} className="flex-1 bg-stone-100 text-stone-600 py-4 rounded-2xl font-bold hover:bg-stone-200 transition-all">Descartar</button>
+                  </div>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {filteredQuestions.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4">
+              {filteredQuestions.map(q => (
+                <motion.div 
+                  key={q.id}
+                  layout
+                  className="glass-card p-6 rounded-3xl border border-stone-200/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 group hover:border-[#B45309]/30 transition-all bg-white shadow-sm"
+                >
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="px-3 py-1 bg-amber-50 text-[#B45309] text-[10px] font-bold uppercase rounded-lg tracking-widest">{subjects.find(s => s.id === q.subject_id)?.name || 'Geral'}</span>
+                      <span className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">ID: {q.id.slice(0,8)}</span>
+                    </div>
+                    <h5 className="text-stone-900 font-bold leading-relaxed">{q.text}</h5>
+                  </div>
+                  <div className="flex gap-2 items-center shrink-0">
+                    <button 
+                      onClick={() => setEditingQuestion(q)}
+                      className="p-3 rounded-xl bg-stone-50 text-stone-400 hover:text-[#B45309] hover:bg-amber-50 transition-all border border-stone-100"
+                    >
+                      <Edit3 size={18} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(q.id)}
+                      className="p-3 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-100 shadow-sm"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center py-20 text-center">
+              <p className="text-stone-400 text-sm mb-4">Nenhuma questão encontrada para os filtros aplicados</p>
+              <button 
+                 onClick={() => setIsAdding(true)}
+                 className="flex items-center gap-2 text-[#B45309] font-bold text-sm hover:underline"
+               >
+                 <Plus size={16} /> Criar nova questão
+               </button>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Modal IA Especialista */}
+      <AnimatePresence>
+        {showAIAssistant && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAIAssistant(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-md"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-7xl h-[92vh] bg-stone-900 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col border border-white/5"
+            >
+              <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-indigo-600 text-white shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                    <Wand2 size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold leading-tight">IA Especialista em Questões</h2>
+                    <p className="text-indigo-100/70 text-xs font-medium">Geração inteligente de avaliações via PDF/PPTX</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowAIAssistant(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                >
+                  <XCircle size={22} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-hidden bg-stone-950">
+                <QuizTheosPro 
+                  subjects={subjects} 
+                  selectedSubjectId={selectedSubjectId}
+                  onClose={() => setShowAIAssistant(false)}
+                  onImport={async (qs: any[]) => {
+                    const finalSubjectId = selectedSubjectId || (subjects.length > 0 ? subjects[0].id : null);
+                    
+                    if (!finalSubjectId) {
+                      alert("Erro: Nenhuma disciplina encontrada. Crie uma disciplina antes de importar.");
+                      return;
+                    }
+
+                    const mappedQs = qs.map(q => ({
+                      text: q.text,
+                      options: q.options || ['', '', '', ''],
+                      correct_option_index: q.correctOptionIndex || 0,
+                      subject_id: finalSubjectId, 
+                      category: 'IA'
+                    }));
+                    
+                    console.log(`Importando ${mappedQs.length} questões para a disciplina ID: ${finalSubjectId}`);
+                    const { error } = await supabase.from('questions').insert(mappedQs);
+                    
+                    if (error) {
+                      console.error("Erro na importação (Tentativa 1):", error);
+                      // Fallback para subjectId (camelCase)
+                      const retryQs = mappedQs.map(q => ({
+                        text: q.text,
+                        options: q.options,
+                        correct_option_index: q.correct_option_index,
+                        subjectId: finalSubjectId,
+                        category: q.category
+                      }));
+                      const { error: error2 } = await supabase.from('questions').insert(retryQs);
+                      
+                      if (error2) {
+                         alert("Falha Crítica na Importação: " + error2.message);
+                      } else {
+                         alert("Sucesso! Questões importadas com mapeamento alternativo.");
+                         setShowAIAssistant(false);
+                      }
+                    } else {
+                      alert(`Sucesso! ${mappedQs.length} questões adicionadas ao seu Banco de Questões.`);
+                      setShowAIAssistant(false);
+                    }
                   }}
                 />
               </div>
-            ))}
+            </motion.div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={handleAdd} className="bg-[var(--color-primary-600)] text-white px-6 py-2 rounded-xl font-bold">Salvar</button>
-            <button onClick={() => setIsAdding(false)} className="bg-stone-100 text-stone-600 px-6 py-2 rounded-xl font-bold">Cancelar</button>
-          </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
-      <div className="space-y-4">
-        {questions.map(q => (
-          <div key={q.id} className="bg-white p-6 rounded-2xl border border-stone-200 flex justify-between items-start">
-            <div>
-              <p className="font-bold text-stone-900 mb-2">{q.text}</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
-                {q.options.map((opt, idx) => (
-                  <p key={idx} className={`text-sm ${idx === q.correctOptionIndex ? 'text-[var(--color-primary-600)] font-bold' : 'text-stone-500'}`}>
-                    {String.fromCharCode(65 + idx)}) {opt}
-                  </p>
+      {/* Modal de Importação de Arquivos */}
+      <AnimatePresence>
+        {showImportDialog && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowImportDialog(false)}
+              className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 border border-stone-100"
+            >
+              <h3 className="text-xl font-bold text-stone-900 mb-6 flex items-center gap-3">
+                <Download className="text-indigo-600" /> Importar Questões
+              </h3>
+              
+              <div className="space-y-4">
+                {[
+                  { label: 'PDF (.pdf)', icon: FileText, color: 'text-red-500 bg-red-50' },
+                  { label: 'Excel (.xlsx)', icon: FileSpreadsheet, color: 'text-green-600 bg-green-50' },
+                  { label: 'Word (.docx)', icon: FileSearch, color: 'text-blue-500 bg-blue-50' }
+                ].map((type, idx) => (
+                  <button
+                    key={idx}
+                    className="w-full flex items-center justify-between p-4 rounded-2xl border border-stone-100 hover:border-indigo-500 hover:bg-stone-50 transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${type.color}`}>
+                        <type.icon size={20} />
+                      </div>
+                      <span className="font-bold text-stone-700">{type.label}</span>
+                    </div>
+                    <ArrowRight size={18} className="text-stone-300 group-hover:text-indigo-500 transition-colors" />
+                  </button>
                 ))}
               </div>
-            </div>
-            <button onClick={async () => {
-              const { error } = await supabase.from('questions').delete().eq('id', q.id);
-              if (error) handleSupabaseError(error, OperationType.DELETE, 'questions');
-            }} className="text-stone-300 hover:text-red-500">
-              <Trash2 size={18} />
-            </button>
+              
+              <p className="mt-8 text-xs text-stone-400 text-center uppercase tracking-widest font-bold">
+                ou arraste o arquivo aqui
+              </p>
+              
+              <button 
+                onClick={() => setShowImportDialog(false)}
+                className="mt-6 w-full py-4 text-stone-500 font-bold text-sm hover:text-stone-800"
+              >
+                Cancelar
+              </button>
+            </motion.div>
           </div>
-        ))}
-      </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
+
+
+
 
 // --- Results View ---
 const ResultsView = () => {
@@ -610,7 +1073,6 @@ const ResultsView = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Results
         let resultsQuery = supabase.from('exam_results').select('*');
         if (user?.role === 'student') {
           resultsQuery = resultsQuery.eq('student_id', user.uid);
@@ -618,17 +1080,12 @@ const ResultsView = () => {
         const { data: resData } = await resultsQuery;
         setResults(resData || []);
 
-        // Exams
         const { data: exData } = await supabase.from('exams').select('*');
         const eMap: Record<string, Exam> = {};
         exData?.forEach(d => eMap[d.id] = d as Exam);
         setExams(eMap);
 
-        // Users
         let usersQuery = supabase.from('users').select('*');
-        if (user?.role === 'student') {
-          usersQuery = usersQuery.eq('id', user.uid);
-        }
         const { data: uData } = await usersQuery;
         const uMap: Record<string, UserProfile> = {};
         uData?.forEach(d => uMap[d.id] = {
@@ -636,99 +1093,102 @@ const ResultsView = () => {
           displayName: d.display_name,
           email: d.email,
           role: d.role,
-          createdAt: d.created_at,
-          photoURL: d.photo_url
+          createdAt: d.created_at
         } as UserProfile);
         setStudents(uMap);
       } catch (err) {
         handleSupabaseError(err, OperationType.GET, 'results_data');
       }
     };
-
     fetchData();
   }, [user]);
 
-  const filteredResults = results.filter(r => {
+  const filtered = results.filter(r => {
     const studentName = students[r.studentId]?.displayName || '';
     const examTitle = exams[r.examId]?.title || '';
-    return studentName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-           examTitle.toLowerCase().includes(searchTerm.toLowerCase());
+    return studentName.toLowerCase().includes(searchTerm.toLowerCase()) || examTitle.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  const downloadPDF = () => {
-    const doc = new jsPDF();
-    doc.text('Relatório de Resultados', 14, 15);
-    const tableData = filteredResults.map(r => [
-      students[r.studentId]?.displayName || '---',
-      exams[r.examId]?.title || '---',
-      format(new Date(r.completedAt), 'dd/MM/yyyy HH:mm'),
-      r.score.toFixed(1)
-    ]);
-    (doc as any).autoTable({
-      head: [['Aluno', 'Prova', 'Data', 'Nota']],
-      body: tableData,
-      startY: 20,
-    });
-    doc.save('relatorio_resultados.pdf');
-  };
-
   return (
-    <div className="space-y-6">
-      <header className="flex justify-between items-center">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8"
+    >
+      <header className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-stone-900">Resultados de Provas</h2>
-          <p className="text-stone-500 italic serif">Desempenho acadêmico dos alunos</p>
+          <h2 className="text-3xl font-bold text-stone-900 tracking-tight">Desempenho Acadêmico</h2>
+          <p className="text-stone-500 italic serif">Histórico de avaliações e notas</p>
         </div>
-        <button 
-          onClick={downloadPDF}
-          className="flex items-center gap-2 bg-stone-100 text-stone-600 px-4 py-2 rounded-xl hover:bg-stone-200 transition-all font-bold"
-        >
-          <Download size={20} /> PDF
-        </button>
+        <div className="bg-white px-6 py-3 rounded-2xl border border-stone-200 shadow-sm flex items-center gap-4">
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Média Geral</span>
+            <span className="text-xl font-bold text-[var(--color-primary-600)]">
+              {(results.reduce((acc, r) => acc + r.score, 0) / (results.length || 1)).toFixed(1)}
+            </span>
+          </div>
+          <div className="w-px h-8 bg-stone-100" />
+          <Award className="text-amber-500" size={24} />
+        </div>
       </header>
 
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
         <input 
-          className="w-full pl-12 pr-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none bg-white"
-          placeholder="Buscar por aluno ou prova..."
+          className="w-full pl-14 pr-6 py-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white shadow-sm transition-all"
+          placeholder="Buscar resultado por aluno ou prova..."
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
         />
       </div>
 
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-stone-50">
-            <tr>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase">Aluno</th>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase">Prova</th>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase">Data</th>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase text-right">Nota</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stone-100">
-            {filteredResults.map(result => (
-              <tr key={result.id} className="hover:bg-stone-50 transition-colors">
-                <td className="px-6 py-4 font-medium text-stone-900">{students[result.studentId]?.displayName || '---'}</td>
-                <td className="px-6 py-4 text-stone-600">{exams[result.examId]?.title || '---'}</td>
-                <td className="px-6 py-4 text-stone-500 text-sm">{format(new Date(result.completedAt), 'dd/MM/yyyy HH:mm')}</td>
-                <td className="px-6 py-4 text-right">
-                  <span className={`font-bold ${result.score >= 7 ? 'text-[var(--color-primary-600)]' : 'text-red-500'}`}>
-                    {result.score.toFixed(1)}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="grid grid-cols-1 gap-4">
+        <AnimatePresence>
+          {filtered.map(res => (
+            <motion.div 
+              key={res.id}
+              layout
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="glass-card p-6 rounded-3xl border border-stone-200/50 flex flex-col md:flex-row justify-between items-center gap-6 group hover:border-[var(--color-primary-500)]/30 transition-all"
+            >
+              <div className="flex items-center gap-6 flex-1 min-w-0">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl shadow-inner ${
+                  res.score >= 7 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'
+                }`}>
+                  {res.score.toFixed(1)}
+                </div>
+                <div className="min-w-0">
+                  <h5 className="text-lg font-bold text-stone-900 truncate">{exams[res.examId]?.title || 'Avaliação Excluída'}</h5>
+                  <p className="text-sm text-stone-500 flex items-center gap-2">
+                    <Users size={14} className="text-stone-300" />
+                    {students[res.studentId]?.displayName || 'Aluno não identificado'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-8 shrink-0">
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Finalizado Em</p>
+                  <p className="text-sm font-medium text-stone-600 flex items-center gap-2 justify-end">
+                    <Calendar size={14} className="text-stone-300" />
+                    {format(new Date(res.completedAt), 'dd/MM/yyyy')}
+                  </p>
+                </div>
+                <button className="p-3 rounded-xl bg-stone-50 text-stone-400 hover:text-[var(--color-primary-600)] hover:bg-[var(--color-primary-50)] transition-all border border-stone-100 shadow-sm">
+                  <FileText size={20} />
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 };
 // --- Students View ---
 const StudentsView = () => {
-  const { user: currentUser } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [studentDetails, setStudentDetails] = useState<Record<string, StudentDetails>>({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -820,7 +1280,7 @@ const StudentsView = () => {
       s.displayName,
       s.email,
       studentDetails[s.uid]?.registrationNumber || '---',
-      studentDetails[s.uid]?.status === 'active' ? 'Ativo' : studentDetails[s.uid]?.status === 'graduated' ? 'Formado' : 'Inativo'
+      studentDetails[s.uid]?.status === 'active' ? 'Ativo' : studentDetails[s.uid]?.status === 'graduated' ? 'Formado' : studentDetails[s.uid]?.status === 'pending' ? 'Pendente' : 'Inativo'
     ]);
     (doc as any).autoTable({
       head: [['Nome', 'Email', 'Matrícula', 'Status']],
@@ -898,6 +1358,7 @@ const StudentsView = () => {
                     <option value="active">Ativo</option>
                     <option value="inactive">Inativo</option>
                     <option value="graduated">Formado</option>
+                    <option value="pending">Pendente (Aguardando Aprovação)</option>
                   </select>
                 </div>
                 <div className="space-y-1">
@@ -917,77 +1378,74 @@ const StudentsView = () => {
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
         <input 
-          className="w-full pl-12 pr-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none bg-white"
-          placeholder="Buscar aluno por nome ou email..."
+          className="w-full pl-12 pr-4 py-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white transition-all shadow-sm"
+          placeholder="Buscar aluno por nome, email ou igreja..."
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
         />
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-stone-50 border-bottom border-stone-200">
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Aluno</th>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Contato</th>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Matrícula</th>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stone-100">
-            {filtered.map(student => {
-              const details = studentDetails[student.uid];
-              return (
-                <tr key={student.uid} className="hover:bg-stone-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full text-[var(--color-primary-600)] flex items-center justify-center font-bold text-[var(--color-primary-600)]">
-                        {student.displayName[0]}
-                      </div>
-                      <div>
-                        <p className="font-bold text-stone-900">{student.displayName}</p>
-                        <p className="text-xs text-stone-400">{details?.church || 'Igreja não informada'}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="text-sm text-stone-600">{student.email}</p>
-                    <p className="text-xs text-stone-400">{details?.phone || 'Sem telefone'}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="text-sm font-mono text-stone-500">{details?.registrationNumber || '---'}</p>
-                    <p className="text-[10px] text-stone-400 uppercase">{details?.enrollmentDate ? format(new Date(details.enrollmentDate), 'dd/MM/yyyy') : '---'}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      details?.status === 'active' ? 'text-[var(--color-primary-600)] text-[var(--color-primary-600)]' : 
-                      details?.status === 'graduated' ? 'bg-blue-100 text-blue-700' : 'bg-stone-100 text-stone-500'
-                    }`}>
-                      {details?.status === 'active' ? 'Ativo' : details?.status === 'graduated' ? 'Formado' : 'Inativo'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button 
-                        onClick={() => setEditingStudent({ user: student, details: details || {} as StudentDetails })}
-                        className="p-2 text-stone-400 text-[var(--color-primary-600)] transition-colors"
-                      >
-                        <FileText size={18} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(student.uid)}
-                        className="p-2 text-stone-400 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <AnimatePresence>
+          {filtered.map(s => (
+            <motion.div 
+              key={s.uid}
+              layout
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card p-6 rounded-3xl border border-stone-200/50 flex flex-col group relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-[var(--color-primary-500)]/5 rounded-full -mr-12 -mt-12 blur-2xl transition-all group-hover:bg-[var(--color-primary-500)]/10" />
+              
+              <div className="flex items-center gap-4 mb-6 relative z-10">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--color-primary-500)] to-[var(--color-accent-pink)] p-[2px] shadow-lg shadow-purple-500/10">
+                  <div className="w-full h-full rounded-[14px] bg-white flex items-center justify-center text-xl font-bold text-[var(--color-primary-600)] overflow-hidden">
+                    {s.photoURL ? <img src={s.photoURL} alt="" className="w-full h-full object-cover" /> : s.displayName[0]}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-lg font-bold text-stone-900 truncate">{s.displayName}</h4>
+                  <p className="text-xs text-stone-400 truncate">{s.email}</p>
+                </div>
+                <div 
+                  className={`w-3 h-3 rounded-full ${studentDetails[s.uid]?.status === 'active' ? 'bg-green-500' : studentDetails[s.uid]?.status === 'pending' ? 'bg-amber-500 animate-pulse' : 'bg-stone-300'} shadow-sm`} 
+                  title={studentDetails[s.uid]?.status === 'pending' ? 'Aguardando Aprovação' : ''} 
+                />
+              </div>
+
+              <div className="space-y-3 mb-6 relative z-10">
+                <div className="flex items-center gap-2 text-sm text-stone-500">
+                  <div className="w-8 h-8 rounded-lg bg-stone-50 flex items-center justify-center text-stone-400">
+                    <Users size={14} />
+                  </div>
+                  <span className="truncate">{studentDetails[s.uid]?.church || 'Comunidade não informada'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-stone-500">
+                  <div className="w-8 h-8 rounded-lg bg-stone-50 flex items-center justify-center text-stone-400">
+                    <FileText size={14} />
+                  </div>
+                  <span className="font-mono text-xs">{studentDetails[s.uid]?.registrationNumber || 'MAT-PENDENTE'}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 relative z-10 mt-auto">
+                <button 
+                  onClick={() => setEditingStudent({ user: s, details: studentDetails[s.uid] })}
+                  className="flex-1 py-3 rounded-xl bg-stone-900 text-white font-bold hover:bg-stone-800 transition-all text-sm shadow-lg shadow-stone-900/10"
+                >
+                  Editar Perfil
+                </button>
+                <button 
+                  onClick={() => handleDelete(s.uid)}
+                  className="p-3 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-100"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -995,10 +1453,12 @@ const StudentsView = () => {
 
 // --- Teachers View ---
 const TeachersView = () => {
+  const { user } = useContext(AuthContext);
   const [teachers, setTeachers] = useState<UserProfile[]>([]);
   const [teacherDetails, setTeacherDetails] = useState<Record<string, TeacherDetails>>({});
   const [isAdding, setIsAdding] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<{ user: UserProfile, details: TeacherDetails } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1030,9 +1490,10 @@ const TeachersView = () => {
         handleSupabaseError(err, OperationType.GET, 'teachers_data');
       }
     };
-
     fetchData();
   }, []);
+
+  const filtered = teachers.filter(t => t.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || t.email.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1068,15 +1529,25 @@ const TeachersView = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-stone-900">Registro de Professores</h2>
-          <p className="text-stone-500 italic serif">Corpo docente e currículos</p>
+          <h2 className="text-3xl font-bold text-stone-900 tracking-tight">Corpo Docente</h2>
+          <p className="text-stone-500 italic serif">Gestão de professores e especializações</p>
         </div>
         <button 
           onClick={() => setIsAdding(true)}
-          className="flex items-center gap-2 bg-stone-900 text-white px-4 py-2 rounded-xl hover:bg-stone-800 transition-all"
+          className="flex items-center gap-2 bg-[var(--color-primary-600)] text-white px-6 py-3 rounded-2xl hover:scale-105 transition-all shadow-xl shadow-[var(--color-primary-500)]/20 font-bold"
         >
-          <Plus size={20} /> Novo Professor
+          <Plus size={20} /> Adicionar Professor
         </button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
+        <input 
+          className="w-full pl-12 pr-4 py-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white transition-all shadow-sm"
+          placeholder="Buscar professor por nome ou email..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+        />
       </div>
 
       {(isAdding || editingTeacher) && (
@@ -1123,35 +1594,73 @@ const TeachersView = () => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {teachers.map(teacher => {
-          const details = teacherDetails[teacher.uid];
-          return (
-            <div key={teacher.uid} className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 flex gap-6 items-start">
-              <div className="w-20 h-20 rounded-2xl bg-stone-100 flex items-center justify-center text-stone-400 shrink-0">
-                <Users size={40} />
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="text-lg font-bold text-stone-900">{teacher.displayName}</h4>
-                    <p className="text-sm text-[var(--color-primary-600)] font-medium">{details?.specialization || 'Professor'}</p>
+        <AnimatePresence>
+          {filtered.map(teacher => {
+            const details = teacherDetails[teacher.uid];
+            return (
+              <motion.div 
+                key={teacher.uid}
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-card p-6 rounded-3xl border border-stone-200/50 flex flex-col group relative overflow-hidden"
+              >
+                <div className="flex gap-6 items-start relative z-10">
+                  <div className="w-20 h-20 rounded-[24px] bg-gradient-to-br from-stone-50 to-stone-100 flex items-center justify-center text-stone-400 shrink-0 border border-stone-200/50 shadow-inner group-hover:scale-110 transition-transform">
+                    {teacher.photoURL ? (
+                      <img src={teacher.photoURL} alt="" className="w-full h-full rounded-[23px] object-cover" />
+                    ) : (
+                      <Users size={32} />
+                    )}
                   </div>
-                  <button 
-                    onClick={() => setEditingTeacher({ user: teacher, details: details || {} as TeacherDetails })}
-                    className="text-stone-300 hover:text-stone-600"
-                  >
-                    <FileText size={18} />
-                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-1">
+                      <h4 className="text-xl font-bold text-stone-900 truncate">{teacher.displayName}</h4>
+                      <button 
+                        onClick={() => setEditingTeacher({ user: teacher, details: details || {} as TeacherDetails })}
+                        className="text-stone-300 hover:text-[var(--color-primary-600)] transition-colors p-1"
+                      >
+                        <FileText size={20} />
+                      </button>
+                    </div>
+                    <p className="text-sm text-[var(--color-primary-600)] font-bold tracking-wide uppercase">{details?.specialization || 'Professor Coordenador'}</p>
+                    <p className="mt-4 text-stone-500 text-sm line-clamp-3 leading-relaxed italic serif">{details?.bio || 'Professor dedicado à formação teológica e ministerial.'}</p>
+                  </div>
                 </div>
-                <p className="text-sm text-stone-500 line-clamp-2 italic serif">{details?.bio || 'Sem biografia informada.'}</p>
-                <div className="flex gap-4 pt-2">
-                  <div className="text-xs text-stone-400 flex items-center gap-1"><FileText size={12} /> {teacher.email}</div>
-                  {details?.phone && <div className="text-xs text-stone-400 flex items-center gap-1"><Users size={12} /> {details.phone}</div>}
+
+                <div className="mt-8 pt-6 border-t border-stone-100 flex items-center justify-between relative z-10">
+                  <div className="flex -space-x-2">
+                    <div className="w-8 h-8 rounded-full bg-stone-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-stone-400">ST</div>
+                    <div className="w-8 h-8 rounded-full bg-stone-50 border-2 border-white flex items-center justify-center text-[10px] font-bold text-stone-300">BD</div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <Clock size={12} className="text-[var(--color-primary-400)]" /> Ativo
+                    </div>
+                    {user?.role === 'master' && (
+                      <button 
+                        onClick={async () => {
+                          const newRole = teacher.role === 'master' ? 'teacher' : 'master';
+                          if (confirm(`Promover ${teacher.displayName} a Mestre?`)) {
+                            const { error } = await supabase.from('users').update({ role: newRole }).eq('id', teacher.uid);
+                            if (!error) window.location.reload();
+                          }
+                        }}
+                        className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-lg border transition-all ${
+                          teacher.role === 'master' 
+                            ? 'bg-amber-50 border-amber-200 text-amber-600' 
+                            : 'bg-white border-stone-200 text-stone-400 hover:border-amber-500 hover:text-amber-500'
+                        }`}
+                      >
+                         Mestre
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
-          );
-        })}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -1164,6 +1673,7 @@ const AttendanceView = () => {
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [presentIds, setPresentIds] = useState<string[]>([]);
   const [lessonTopic, setLessonTopic] = useState('');
+  const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
   useEffect(() => {
     const fetchSubjects = async () => {
@@ -1196,78 +1706,101 @@ const AttendanceView = () => {
 
     if (error) handleSupabaseError(error, OperationType.CREATE, 'attendance');
     else {
-      setLessonTopic('Chamada salva com sucesso!');
-      setTimeout(() => {
-        setLessonTopic('');
-        setPresentIds([]);
-      }, 3000);
+      setStatus({ type: 'success', msg: 'Chamada registrada com sucesso!' });
+      setLessonTopic('');
+      setPresentIds([]);
+      setTimeout(() => setStatus(null), 3000);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h2 className="text-2xl font-bold text-stone-900">Chamada Online</h2>
-        <p className="text-stone-500 italic serif">Registro diário de presença por aula</p>
+    <div className="space-y-8">
+      <header className="flex justify-between items-end">
+        <div>
+          <h2 className="text-3xl font-bold text-stone-900 tracking-tight">Chamada Online</h2>
+          <p className="text-stone-500 italic serif">Registro diário de presença por aula</p>
+        </div>
+        {status && (
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-green-100 text-green-700 px-4 py-2 rounded-xl font-bold flex items-center gap-2 border border-green-200"
+          >
+            <CheckCircle2 size={18} /> {status.msg}
+          </motion.div>
+        )}
       </header>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="glass-card p-8 rounded-3xl border border-stone-200/50 space-y-6 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/5 rounded-full -mr-16 -mt-16 blur-2xl" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
           <div className="space-y-2">
-            <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Selecione a Disciplina</label>
+            <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Disciplina</label>
             <select 
-              className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-[var(--color-primary-500)]"
+              className="w-full p-4 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-[var(--color-primary-500)]/10 bg-white transition-all appearance-none cursor-pointer"
               value={selectedSubject}
               onChange={e => setSelectedSubject(e.target.value)}
             >
-              <option value="">Selecione...</option>
+              <option value="">Selecione uma disciplina...</option>
               {subjects.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Tópico da Aula / Lição</label>
+            <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">Assunto da Aula</label>
             <input 
-              className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-[var(--color-primary-500)]"
-              placeholder="Ex: Introdução ao Pentateuco"
+              className="w-full p-4 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-[var(--color-primary-500)]/10 bg-white transition-all"
+              placeholder="Digite o tema abordado..."
               value={lessonTopic}
               onChange={e => setLessonTopic(e.target.value)}
             />
           </div>
         </div>
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center pt-4">
+          <div className="text-sm text-stone-400 font-medium">
+            <span className="text-[var(--color-primary-600)] font-bold">{presentIds.length}</span> alunos selecionados
+          </div>
           <button 
             onClick={handleSave}
             disabled={!selectedSubject || !lessonTopic}
-            className="bg-[var(--color-primary-600)] text-white px-8 py-3 rounded-xl font-bold text-[var(--color-primary-600)] disabled:opacity-50 transition-all shadow-lg shadow-[var(--color-primary-500)]/20"
+            className="bg-stone-900 text-white px-10 py-4 rounded-2xl font-bold disabled:opacity-30 transition-all hover:scale-[1.02] active:scale-95 shadow-xl shadow-stone-900/20"
           >
             Finalizar Chamada
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {students.map(student => (
-          <button
-            key={student.uid}
-            onClick={() => {
-              if (presentIds.includes(student.uid)) setPresentIds(presentIds.filter(id => id !== student.uid));
-              else setPresentIds([...presentIds, student.uid]);
-            }}
-            className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
-              presentIds.includes(student.uid) 
-                ? 'text-[var(--color-primary-600)] text-[var(--color-primary-600)] text-[var(--color-primary-600)]' 
-                : 'bg-white border-stone-200 text-stone-600 hover:border-stone-400'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${presentIds.includes(student.uid) ? 'text-[var(--color-primary-600)]' : 'bg-stone-100'}`}>
-                {student.displayName[0]}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {students.map(student => {
+          const isPresent = presentIds.includes(student.uid);
+          return (
+            <motion.button
+              key={student.uid}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                if (isPresent) setPresentIds(presentIds.filter(id => id !== student.uid));
+                else setPresentIds([...presentIds, student.uid]);
+              }}
+              className={`p-5 rounded-2xl border-2 flex items-center justify-between transition-all group ${
+                isPresent 
+                  ? 'border-[var(--color-primary-500)] bg-[var(--color-primary-50)]/50' 
+                  : 'bg-white border-stone-100 hover:border-stone-300'
+              }`}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg transition-transform group-hover:scale-110 ${isPresent ? 'bg-[var(--color-primary-500)] text-white' : 'bg-stone-100 text-stone-400'}`}>
+                  {student.displayName[0]}
+                </div>
+                <div className="text-left">
+                  <span className={`block font-bold text-sm ${isPresent ? 'text-[var(--color-primary-900)]' : 'text-stone-700'}`}>{student.displayName}</span>
+                  <span className="text-[10px] text-stone-400 uppercase tracking-wider">{isPresent ? 'Presente' : 'Ausente'}</span>
+                </div>
               </div>
-              <span className="font-medium">{student.displayName}</span>
-            </div>
-            {presentIds.includes(student.uid) ? <CheckCircle2 className="text-[var(--color-primary-600)]" /> : <XCircle className="text-stone-300" />}
-          </button>
-        ))}
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isPresent ? 'border-[var(--color-primary-500)] bg-[var(--color-primary-500)] text-white' : 'border-stone-200'}`}>
+                {isPresent && <CheckCircle2 size={16} />}
+              </div>
+            </motion.button>
+          );
+        })}
       </div>
     </div>
   );
@@ -1281,6 +1814,8 @@ const ExamsView = () => {
   const [isCreatingExam, setIsCreatingExam] = useState(false);
   const [newExam, setNewExam] = useState<Partial<Exam>>({ title: '', questions: [], durationMinutes: 60, active: true });
   const [subjects, setSubjects] = useState<Course[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1288,10 +1823,10 @@ const ExamsView = () => {
         const { data: qData } = await supabase.from('questions').select('*');
         setQuestions(qData || []);
         
-        const { data: exData } = await supabase.from('exams').select('*');
+        const { data: exData } = await supabase.from('exams').select('*').order('created_at', { ascending: false });
         setExams(exData || []);
         
-        const { data: sData } = await supabase.from('subjects').select('*');
+        const { data: sData } = await supabase.from('subjects').select('*').order('name');
         setSubjects(sData || []);
       } catch (err) {
         handleSupabaseError(err, OperationType.GET, 'exams_initial_data');
@@ -1299,6 +1834,71 @@ const ExamsView = () => {
     };
     fetchData();
   }, []);
+
+  const generateExamPDF = (exam: Exam) => {
+    const doc = new jsPDF();
+    const subject = subjects.find(s => s.id === exam.courseId);
+    const examQuestions = questions.filter(q => exam.questions.includes(q.id));
+
+    // Cabeçalho Institucional
+    doc.setFontSize(18);
+    doc.setTextColor(180, 83, 9); // Amber-800
+    doc.text('INSTITUTO DE ENSINO TEOLÓGICO', 105, 20, { align: 'center' });
+    
+    doc.setFontSize(14);
+    doc.setTextColor(68, 64, 60); // Stone-700
+    doc.text(exam.title, 105, 30, { align: 'center' });
+    
+    doc.setDrawColor(231, 229, 228); // Stone-200
+    doc.line(20, 35, 190, 35);
+
+    // Campos do Aluno
+    doc.setFontSize(10);
+    doc.text(`Disciplina: ${subject?.name || 'Geral'}`, 20, 45);
+    doc.text(`Data: ____/____/____`, 140, 45);
+    doc.text(`Nome do Aluno: _______________________________________________________`, 20, 55);
+    doc.text(`Nota: ________`, 170, 55);
+    
+    doc.line(20, 60, 190, 60);
+
+    // Questões
+    let y = 75;
+    examQuestions.forEach((q, idx) => {
+      // Verificar quebra de página
+      if (y > 260) {
+        doc.addPage();
+        y = 20;
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${idx + 1}. ${q.text}`, 20, y, { maxWidth: 170 });
+      y += (doc.splitTextToSize(q.text, 170).length * 5) + 5;
+
+      doc.setFont('helvetica', 'normal');
+      q.options.forEach((opt, optIdx) => {
+        const letter = String.fromCharCode(65 + optIdx);
+        doc.text(`(  ) ${letter}) ${opt}`, 25, y, { maxWidth: 160 });
+        y += 7;
+      });
+      y += 5;
+    });
+
+    // Gabarito em nova página
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.text('GABARITO OFICIAL', 105, 20, { align: 'center' });
+    doc.line(20, 25, 190, 25);
+    
+    y = 40;
+    examQuestions.forEach((q, idx) => {
+      const correctLetter = String.fromCharCode(65 + q.correctOptionIndex);
+      doc.text(`${idx + 1}: [ ${correctLetter} ]`, 20, y);
+      y += 10;
+    });
+
+    doc.save(`Prova_${exam.title.replace(/\s+/g, '_')}.pdf`);
+  };
+
 
   const handleCreateExam = async () => {
     if (!newExam.title || !newExam.courseId) return;
@@ -1314,94 +1914,197 @@ const ExamsView = () => {
     else setIsCreatingExam(false);
   };
 
+  const filteredQuestionsForDraft = questions.filter(q => 
+    !newExam.courseId || q.subject_id === newExam.courseId
+  ).filter(q => 
+    q.text.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-stone-900">Provas e Avaliações</h2>
-          <p className="text-stone-500 italic serif">Banco de questões e execução online</p>
+          <p className="text-stone-500 italic serif">Gestão de avaliações e exportação profissional</p>
         </div>
         {(user?.role === 'master' || user?.role === 'teacher') && (
           <button 
             onClick={() => setIsCreatingExam(true)}
-            className="bg-[var(--color-primary-600)] text-white px-4 py-2 rounded-xl flex items-center gap-2 text-[var(--color-primary-600)] transition-all"
+            className="bg-[#B45309] text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-lg shadow-amber-900/10 hover:scale-[1.02] transition-all font-bold"
           >
-            <Plus size={20} /> Criar Prova
+            <Plus size={20} /> Criar Nova Prova
           </button>
         )}
       </div>
 
-      {isCreatingExam && (
-        <div className="bg-white p-8 rounded-2xl shadow-xl border border-[var(--color-primary-500)] space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Título da Prova</label>
-              <input 
-                className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-[var(--color-primary-500)]"
-                placeholder="Ex: Avaliação Final - Teologia Sistemática"
-                value={newExam.title}
-                onChange={e => setNewExam({ ...newExam, title: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Disciplina</label>
-              <select 
-                className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-[var(--color-primary-500)]"
-                value={newExam.courseId}
-                onChange={e => setNewExam({ ...newExam, courseId: e.target.value })}
-              >
-                <option value="">Selecione...</option>
-                {subjects.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Selecionar Questões do Banco ({newExam.questions?.length || 0})</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-auto p-2 border border-stone-100 rounded-xl">
-              {questions.map(q => (
-                <button
-                  key={q.id}
-                  onClick={() => {
-                    const current = newExam.questions || [];
-                    if (current.includes(q.id)) setNewExam({ ...newExam, questions: current.filter(id => id !== q.id) });
-                    else setNewExam({ ...newExam, questions: [...current, q.id] });
-                  }}
-                  className={`p-3 text-left rounded-xl border text-sm transition-all ${
-                    newExam.questions?.includes(q.id) ? 'text-[var(--color-primary-600)] text-[var(--color-primary-600)] text-[var(--color-primary-600)]' : 'bg-white border-stone-100 text-stone-600'
-                  }`}
+      <AnimatePresence>
+        {isCreatingExam && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-white p-8 rounded-3xl shadow-xl border border-stone-100 space-y-8 overflow-hidden"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-400 uppercase tracking-widest ml-1">Título da Avaliação</label>
+                <input 
+                  className="w-full p-4 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-amber-500/10 transition-all font-medium"
+                  placeholder="Ex: Avaliação Bimestral - Pentateuco"
+                  value={newExam.title}
+                  onChange={e => setNewExam({ ...newExam, title: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-400 uppercase tracking-widest ml-1">Disciplina</label>
+                <select 
+                  className="w-full p-4 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-amber-500/10 transition-all font-medium"
+                  value={newExam.courseId}
+                  onChange={e => setNewExam({ ...newExam, courseId: e.target.value })}
                 >
-                  {q.text}
-                </button>
-              ))}
+                  <option value="">Selecione a disciplina...</option>
+                  {subjects.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
             </div>
-          </div>
 
-          <div className="flex gap-3">
-            <button onClick={handleCreateExam} className="bg-[var(--color-primary-600)] text-white px-8 py-3 rounded-xl font-bold">Publicar Prova</button>
-            <button onClick={() => setIsCreatingExam(false)} className="bg-stone-100 text-stone-600 px-8 py-3 rounded-xl font-bold">Cancelar</button>
-          </div>
-        </div>
-      )}
+            <div className="space-y-4">
+              <div className="flex justify-between items-end">
+                 <label className="text-xs font-bold text-stone-400 uppercase tracking-widest ml-1">
+                   Selecionar Questões ({newExam.questions?.length || 0})
+                 </label>
+                 <div className="relative w-64">
+                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
+                   <input 
+                     className="w-full pl-9 pr-4 py-2 rounded-xl border border-stone-100 text-xs outline-none focus:border-amber-300 transition-all"
+                     placeholder="Filtrar por texto..."
+                     value={searchTerm}
+                     onChange={e => setSearchTerm(e.target.value)}
+                   />
+                 </div>
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto p-4 bg-stone-50/50 rounded-3xl border border-stone-100 custom-scrollbar">
+                {filteredQuestionsForDraft.length > 0 ? (
+                  filteredQuestionsForDraft.map(q => {
+                    const isSelected = newExam.questions?.includes(q.id);
+                    return (
+                      <div
+                        key={q.id}
+                        onClick={() => {
+                          const current = newExam.questions || [];
+                          if (current.includes(q.id)) setNewExam({ ...newExam, questions: current.filter(id => id !== q.id) });
+                          else setNewExam({ ...newExam, questions: [...current, q.id] });
+                        }}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex gap-4 items-start ${
+                          isSelected ? 'bg-white border-amber-500 shadow-md shadow-amber-900/5' : 'bg-white/50 border-stone-100 hover:border-stone-200'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? 'bg-amber-600 border-amber-600 text-white' : 'bg-white border-stone-300'}`}>
+                          {isSelected && <Check size={12} strokeWidth={3} />}
+                        </div>
+                        <div>
+                          <p className={`text-sm font-medium leading-relaxed ${isSelected ? 'text-stone-900' : 'text-stone-600'}`}>{q.text}</p>
+                          <div className="flex gap-2 mt-2">
+                             <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">{q.category}</span>
+                             {subjects.find(s => s.id === q.subject_id) && (
+                               <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                                 {subjects.find(s => s.id === q.subject_id)?.name}
+                               </span>
+                             )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full py-12 text-center text-stone-400 italic text-sm">
+                    {newExam.courseId ? 'Nenhuma questão encontrada para esta disciplina.' : 'Selecione uma disciplina para filtrar as questões.'}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-4">
+              <button 
+                onClick={handleCreateExam} 
+                disabled={!newExam.title || !newExam.courseId || (newExam.questions?.length || 0) === 0}
+                className="flex-1 bg-stone-900 text-white py-4 rounded-2xl font-bold shadow-xl hover:bg-stone-800 disabled:opacity-50 disabled:grayscale transition-all"
+              >
+                Publicar e Salvar Avaliação
+              </button>
+              <button 
+                onClick={() => setIsCreatingExam(false)} 
+                className="flex-1 bg-stone-100 text-stone-600 py-4 rounded-2xl font-bold hover:bg-stone-200 transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {exams.map(exam => (
-          <div key={exam.id} className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 group relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-2">
-              <span className={`px-2 py-1 rounded-bl-xl text-[10px] font-bold uppercase ${exam.active ? 'text-[var(--color-primary-600)] text-[var(--color-primary-600)]' : 'bg-stone-100 text-stone-500'}`}>
-                {exam.active ? 'Ativa' : 'Encerrada'}
-              </span>
-            </div>
-            <h4 className="text-lg font-bold text-stone-900 mb-2 pr-12">{exam.title}</h4>
-            <div className="flex items-center gap-4 text-sm text-stone-500 mb-6">
-              <span className="flex items-center gap-1"><Clock size={14} /> {exam.durationMinutes} min</span>
-              <span className="flex items-center gap-1"><FileText size={14} /> {exam.questions.length} questões</span>
-            </div>
-            <button className="w-full py-3 rounded-xl bg-stone-900 text-white font-bold text-[var(--color-primary-600)] transition-all">
-              {user?.role === 'student' ? 'Iniciar Prova' : 'Ver Resultados'}
-            </button>
-          </div>
-        ))}
+        <AnimatePresence>
+          {exams.map(exam => (
+            <motion.div 
+              key={exam.id}
+              layout
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card p-6 rounded-3xl border border-stone-200/50 group relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 p-4 relative z-10 flex justify-end">
+                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                  exam.active 
+                    ? 'bg-green-50 text-green-600 border border-green-100' 
+                    : 'bg-stone-50 text-stone-400 border border-stone-100'
+                }`}>
+                  {exam.active ? 'Ativa' : 'Encerrada'}
+                </span>
+              </div>
+              
+              <div className="mt-2 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-[var(--color-primary-50)] text-[var(--color-primary-600)] flex items-center justify-center mb-4">
+                  <GraduationCap size={24} />
+                </div>
+                <h4 className="text-xl font-bold text-stone-900 leading-tight group-hover:text-[var(--color-primary-600)] transition-colors">{exam.title}</h4>
+                <p className="text-xs text-stone-400 font-medium mt-1 uppercase tracking-wider">{subjects.find(s => s.id === exam.courseId)?.name || 'Disciplina Geral'}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="bg-stone-50/50 p-3 rounded-2xl border border-stone-100/50">
+                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Duração</p>
+                  <p className="text-sm font-bold text-stone-700 flex items-center gap-1.5"><Clock size={14} className="text-[var(--color-primary-500)]" /> {exam.durationMinutes} min</p>
+                </div>
+                <div className="bg-stone-50/50 p-3 rounded-2xl border border-stone-100/50">
+                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Questões</p>
+                  <p className="text-sm font-bold text-stone-700 flex items-center gap-1.5"><FileText size={14} className="text-[var(--color-primary-500)]" /> {exam.questions.length} itens</p>
+                </div>
+              </div>
+
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full py-4 rounded-2xl bg-stone-900 text-white font-bold text-sm shadow-xl shadow-stone-900/10 hover:bg-stone-800 transition-all flex items-center justify-center gap-2"
+              >
+                {user?.role === 'student' ? 'Iniciar Avaliação' : 'Ver Resultados'}
+                <ArrowRight size={16} />
+              </motion.button>
+              
+              {(user?.role === 'master' || user?.role === 'teacher') && (
+                <button 
+                  onClick={() => generateExamPDF(exam)}
+                  className="w-full mt-3 py-3 rounded-2xl bg-white text-stone-600 font-bold text-sm border border-stone-200 hover:bg-stone-50 transition-all flex items-center justify-center gap-2"
+                >
+                  <Download size={16} /> Imprimir PDF
+                </button>
+              )}
+            </motion.div>
+
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -1472,62 +2175,94 @@ const FinancesView = () => {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-10"
+    >
+      <header className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-stone-900">Gestão Financeira</h2>
-          <p className="text-stone-500 italic serif">Controle de entradas e saídas</p>
+          <h2 className="text-3xl font-bold text-stone-900 tracking-tight">Gestão Financeira</h2>
+          <p className="text-stone-500 italic serif">Painel de controle de tesouraria</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button 
             onClick={downloadPDF}
-            className="flex items-center gap-2 bg-stone-100 text-stone-600 px-4 py-2 rounded-xl hover:bg-stone-200 transition-all font-bold"
+            className="flex items-center gap-2 bg-stone-100 text-stone-600 px-6 py-3 rounded-2xl hover:bg-stone-200 transition-all font-bold border border-stone-200"
           >
-            <Download size={20} /> PDF
+            <Download size={20} /> Relatório PDF
           </button>
           <button 
             onClick={() => setIsAdding(true)}
-            className="bg-[var(--color-primary-600)] text-white px-4 py-2 rounded-xl flex items-center gap-2"
+            className="bg-stone-900 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold hover:bg-stone-800 transition-all shadow-xl shadow-stone-900/10"
           >
             <Plus size={20} /> Novo Lançamento
           </button>
         </div>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <motion.div 
+          whileHover={{ y: -5 }}
+          className="glass-card p-8 rounded-[32px] border border-green-100 shadow-xl shadow-green-500/5 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
+          <p className="text-xs font-bold text-stone-400 uppercase tracking-[0.2em] mb-4">Total Entradas</p>
+          <p className="text-4xl font-bold text-green-600 tracking-tight">R$ {totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <div className="mt-4 flex items-center gap-2 text-green-500 text-sm font-bold">
+            <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">↑</div>
+            Fluxo positivo
+          </div>
+        </motion.div>
+
+        <motion.div 
+          whileHover={{ y: -5 }}
+          className="glass-card p-8 rounded-[32px] border border-red-100 shadow-xl shadow-red-500/5 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
+          <p className="text-xs font-bold text-stone-400 uppercase tracking-[0.2em] mb-4">Total Saídas</p>
+          <p className="text-4xl font-bold text-red-500 tracking-tight">R$ {totalExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <div className="mt-4 flex items-center gap-2 text-red-400 text-sm font-bold">
+            <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">↓</div>
+            Gastos operacionais
+          </div>
+        </motion.div>
+
+        <motion.div 
+          whileHover={{ y: -5 }}
+          className="bg-stone-900 p-8 rounded-[32px] border border-stone-800 shadow-2xl relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-primary-500)]/20 rounded-full -mr-16 -mt-16 blur-3xl" />
+          <p className="text-xs font-bold text-stone-500 uppercase tracking-[0.2em] mb-4">Saldo Líquido</p>
+          <p className="text-4xl font-bold text-white tracking-tight">R$ {(totalIncome - totalExpense).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <div className="mt-4 flex items-center gap-2 text-stone-400 text-sm font-bold">
+            <div className="w-6 h-6 rounded-full bg-stone-800 flex items-center justify-center">≋</div>
+            Saldo em conta
+          </div>
+        </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-stone-200">
-          <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Entradas</p>
-          <p className="text-2xl font-bold text-[var(--color-primary-600)]">R$ {totalIncome.toFixed(2)}</p>
-        </div>
-        <div className="bg-white p-6 rounded-2xl border border-stone-200">
-          <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Saídas</p>
-          <p className="text-2xl font-bold text-red-500">R$ {totalExpense.toFixed(2)}</p>
-        </div>
-        <div className="bg-stone-900 p-6 rounded-2xl border border-stone-800">
-          <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">Saldo Líquido</p>
-          <p className="text-2xl font-bold text-white">R$ {(totalIncome - totalExpense).toFixed(2)}</p>
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex flex-col md:flex-row gap-6">
         <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
           <input 
-            className="w-full pl-12 pr-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-[var(--color-primary-500)] outline-none bg-white"
-            placeholder="Buscar por descrição..."
+            className="w-full pl-14 pr-6 py-4 rounded-2xl border border-stone-200 focus:ring-4 focus:ring-[var(--color-primary-500)]/10 outline-none bg-white shadow-sm transition-all"
+            placeholder="Buscar transação por descrição..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
-        <select 
-          className="p-3 rounded-2xl border border-stone-200 outline-none bg-white min-w-[150px]"
-          value={filterType}
-          onChange={e => setFilterType(e.target.value)}
-        >
-          <option value="all">Todos os Tipos</option>
-          <option value="income">Entradas</option>
-          <option value="expense">Saídas</option>
-        </select>
+        <div className="flex gap-2">
+          <select 
+            className="px-6 py-4 rounded-2xl border border-stone-200 outline-none bg-white font-bold text-stone-600 appearance-none min-w-[180px] shadow-sm cursor-pointer hover:border-stone-300 transition-all"
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+          >
+            <option value="all">Todas as Datas</option>
+            <option value="income">Entradas (+)</option>
+            <option value="expense">Saídas (-)</option>
+          </select>
+        </div>
       </div>
 
       {isAdding && (
@@ -1588,7 +2323,7 @@ const FinancesView = () => {
           </tbody>
         </table>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -1596,6 +2331,7 @@ const FinancesView = () => {
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showLogin, setShowLogin] = useState(false);
+  const [isEnrollMode, setIsEnrollMode] = useState(false);
 
   return (
     <ErrorBoundary>
@@ -1609,9 +2345,15 @@ export default function App() {
             );
             if (!user) {
               return showLogin ? (
-                <LoginView onBack={() => setShowLogin(false)} />
+                <LoginView 
+                  onBack={() => { setShowLogin(false); setIsEnrollMode(false); }}
+                  initialIsSignUp={isEnrollMode}
+                />
               ) : (
-                <LandingPage onLoginClick={() => setShowLogin(true)} />
+                <LandingPage 
+                  onLoginClick={() => { setShowLogin(true); setIsEnrollMode(false); }} 
+                  onEnrollClick={() => { setShowLogin(true); setIsEnrollMode(true); }}
+                />
               );
             }
 

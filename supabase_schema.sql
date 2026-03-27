@@ -1,8 +1,13 @@
--- Create custom types
-CREATE TYPE user_role AS ENUM ('student', 'teacher', 'master');
+-- Create custom types (using DO block for safer idempotency)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('student', 'teacher', 'master');
+    END IF;
+END $$;
 
 -- Users table (linked to Auth)
-CREATE TABLE public.users (
+CREATE TABLE IF NOT EXISTS public.users (
   id UUID REFERENCES auth.users NOT NULL PRIMARY KEY,
   display_name TEXT,
   email TEXT UNIQUE NOT NULL,
@@ -13,7 +18,7 @@ CREATE TABLE public.users (
 );
 
 -- Teachers table
-CREATE TABLE public.teachers (
+CREATE TABLE IF NOT EXISTS public.teachers (
   id UUID REFERENCES public.users PRIMARY KEY,
   bio TEXT,
   specialization TEXT,
@@ -23,7 +28,7 @@ CREATE TABLE public.teachers (
 );
 
 -- Subjects/Courses table
-CREATE TABLE public.subjects (
+CREATE TABLE IF NOT EXISTS public.subjects (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
@@ -32,7 +37,7 @@ CREATE TABLE public.subjects (
 );
 
 -- Students table (extended info)
-CREATE TABLE public.students (
+CREATE TABLE IF NOT EXISTS public.students (
   id UUID REFERENCES public.users PRIMARY KEY,
   registration_number TEXT UNIQUE,
   status TEXT DEFAULT 'active',
@@ -45,7 +50,7 @@ CREATE TABLE public.students (
 );
 
 -- Questions table
-CREATE TABLE public.questions (
+CREATE TABLE IF NOT EXISTS public.questions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   text TEXT NOT NULL,
   options JSONB NOT NULL,
@@ -55,7 +60,7 @@ CREATE TABLE public.questions (
 );
 
 -- Exams table
-CREATE TABLE public.exams (
+CREATE TABLE IF NOT EXISTS public.exams (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title TEXT NOT NULL,
   subject_id UUID REFERENCES public.subjects(id),
@@ -66,7 +71,7 @@ CREATE TABLE public.exams (
 );
 
 -- Exam Results table
-CREATE TABLE public.exam_results (
+CREATE TABLE IF NOT EXISTS public.exam_results (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   student_id UUID REFERENCES public.users(id),
   exam_id UUID REFERENCES public.exams(id),
@@ -76,7 +81,7 @@ CREATE TABLE public.exam_results (
 );
 
 -- Attendance table
-CREATE TABLE public.attendance (
+CREATE TABLE IF NOT EXISTS public.attendance (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   subject_id UUID REFERENCES public.subjects(id),
   lesson_topic TEXT,
@@ -86,7 +91,7 @@ CREATE TABLE public.attendance (
 );
 
 -- Finances table
-CREATE TABLE public.finances (
+CREATE TABLE IF NOT EXISTS public.finances (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   type TEXT NOT NULL, -- 'income' or 'expense'
   amount NUMERIC(10,2) NOT NULL,
@@ -97,7 +102,8 @@ CREATE TABLE public.finances (
 
 -- RLS Policies
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can view their own profile" ON public.users FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can view all profiles" ON public.users FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Users can insert their own profile" ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Users can update their own profile" ON public.users FOR UPDATE USING (auth.uid() = id);
 
 -- Trigger to create user profile on signup
@@ -105,11 +111,17 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.users (id, display_name, email, role)
-  VALUES (new.id, new.raw_user_meta_data->>'full_name', new.email, 'student');
+  VALUES (
+    new.id, 
+    COALESCE(new.raw_user_meta_data->>'full_name', 'Novo Usuário'), 
+    new.email, 
+    'student'
+  );
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();

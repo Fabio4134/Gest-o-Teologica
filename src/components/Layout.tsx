@@ -1,7 +1,22 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { AuthContext } from './Auth';
 import { TenantContext } from '../theme/TenantContext';
-import { LogOut, GraduationCap, BookOpen, Users, ClipboardCheck, FileText, DollarSign, BarChart3, Menu, X, Award, CheckCircle2, Building } from 'lucide-react';
+import { 
+  BarChart3, 
+  BookOpen, 
+  CheckCircle2, 
+  Users, 
+  GraduationCap, 
+  DollarSign, 
+  FileText, 
+  Award, 
+  LogOut, 
+  Building,
+  Menu,
+  X,
+  ClipboardCheck
+} from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,38 +31,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3, roles: ['student', 'teacher', 'master'] },
-    { 
-      id: 'subjects', 
-      label: 'Disciplinas', 
-      icon: BookOpen, 
-      roles: ['student', 'teacher', 'master'],
-      subItems: [
-        "Cristologia", "Epístolas Paulinas", "Escatologia", "Escola Dominical",
-        "Evangelhos e Atos", "Evangelismo", "Evidência Cristã",
-        "Fundamentos da Psicologia e do Aconselhamento", "Geografia Bíblica",
-        "Hebreus e Epístolas Gerais", "Hermenêutica", "História da Igreja",
-        "Homilética", "Introdução ao Novo Testamento", "Introdução Bíblica",
-        "Livros Históricos", "Livros Poéticos", "Maneiras e Costumes Bíblicos",
-        "Missiologia", "Pentateuco", "Profetas Maiores e Menores",
-        "Religiões Comparadas", "Teologia Pastoral", "Teologia Sistemática"
-      ]
-    },
+    { id: 'subjects', label: 'Disciplinas', icon: BookOpen, roles: ['student', 'teacher', 'master'] },
+    { id: 'questions', label: 'Banco de Questões', icon: ClipboardCheck, roles: ['teacher', 'master'] },
     { id: 'attendance', label: 'Chamada', icon: CheckCircle2, roles: ['teacher', 'master'] },
     { id: 'enrollment', label: 'Matrícula', icon: Users, roles: ['master', 'teacher'] },
     { id: 'students', label: 'Alunos', icon: Users, roles: ['teacher', 'master'] },
     { id: 'teachers', label: 'Professores', icon: GraduationCap, roles: ['master'] },
     { id: 'finances', label: 'Financeiro', icon: DollarSign, roles: ['master'] },
-    { id: 'questions', label: 'Banco de Questões', icon: ClipboardCheck, roles: ['teacher', 'master'] },
     { id: 'exams', label: 'Provas', icon: FileText, roles: ['student', 'teacher', 'master'] },
     { id: 'results', label: 'Resultados', icon: Award, roles: ['student', 'teacher', 'master'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(user?.role || ''));
 
-  const [expandedItems, setExpandedItems] = React.useState<string[]>(['subjects']);
+  const [expandedMenus, setExpandedMenus] = React.useState<string[]>(['subjects']);
 
-  const toggleExpand = (id: string) => {
-    setExpandedItems(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  const toggleMenu = (id: string) => {
+    // No-op for now as we don't have sub-items
   };
 
   return (
@@ -56,8 +56,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[var(--color-primary-100)] opacity-40 blur-3xl mix-blend-multiply pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[var(--color-primary-50)] opacity-60 blur-3xl mix-blend-multiply pointer-events-none"></div>
 
-      {/* Sidebar Desktop - Premium Floating Glass style */}
-      <aside className="hidden md:flex flex-col w-72 m-4 rounded-3xl glass-dark text-stone-300 p-6 z-10 overflow-hidden relative shadow-2xl border-stone-700">
+      {/* Sidebar Desktop - Solid Premium style */}
+      <aside className="hidden md:flex flex-col w-72 m-4 rounded-3xl bg-[#1a1625] text-stone-300 p-6 z-10 overflow-hidden relative shadow-2xl border border-white/5">
         <div className="flex items-center gap-3 mb-10 px-2 relative z-10 mt-2">
           {tenant.logoUrl ? (
              <img src={tenant.logoUrl} alt="Logo" className="w-10 h-10 object-contain" />
@@ -72,42 +72,34 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
           </div>
         </div>
         
-        <nav className="flex-1 space-y-1 overflow-y-auto pr-2 custom-scrollbar relative z-10">
-          {filteredMenu.map(item => (
-            <div key={item.id} className="space-y-1">
+        <nav className="flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar relative z-10">
+          {filteredMenu.map(item => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
               <button
-                onClick={() => {
-                  setActiveTab(item.id);
-                  if (item.subItems) toggleExpand(item.id);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 outline-none ${
-                  activeTab === item.id 
-                    ? 'bg-[var(--color-primary-500)] text-white shadow-lg shadow-[var(--color-primary-500)]/30 font-medium translate-x-1' 
-                    : 'hover:bg-white/10 hover:text-white text-stone-400'
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 outline-none relative group ${
+                  isActive
+                    ? 'text-white font-semibold' 
+                    : 'hover:bg-white/5 hover:text-white text-stone-400'
                 }`}
               >
-                <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                <span className="font-medium tracking-wide">{item.label}</span>
-                {item.subItems && (
-                  <Menu size={14} className={`ml-auto transition-transform ${expandedItems.includes(item.id) ? 'rotate-90 text-[var(--color-primary-100)]' : ''}`} />
+                {isActive && (
+                  <motion.div 
+                    layoutId="activeNav"
+                    className="absolute inset-0 bg-gradient-to-r from-[var(--color-primary-600)] to-[var(--color-primary-400)] rounded-2xl shadow-lg shadow-[var(--color-primary-500)]/40"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
                 )}
+                <span className="relative z-10 flex items-center gap-3">
+                  <Icon size={20} className={`transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-white' : 'text-stone-500'}`} />
+                  <span className="tracking-wide">{item.label}</span>
+                </span>
               </button>
-              
-              {item.subItems && expandedItems.includes(item.id) && (
-                <div className="pl-12 space-y-1 mb-2 mt-2 relative before:absolute before:content-[''] before:left-6 before:top-0 before:bottom-0 before:w-[1px] before:bg-white/10">
-                  {item.subItems.map(sub => (
-                    <button
-                      key={sub}
-                      onClick={() => setActiveTab('subjects')}
-                      className="w-full text-left py-2 text-sm text-stone-400 hover:text-[var(--color-primary-400)] hover:translate-x-1 transition-all truncate"
-                    >
-                      {sub}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="mt-8 pt-6 border-t border-white/10 relative z-10">
@@ -137,7 +129,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
       {/* Mobile Header */}
       <header className="md:hidden glass text-stone-900 border-b border-stone-200 p-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[var(--color-primary-500)] rounded-lg flex items-center justify-center text-white shadow-md">
+          <div className="w-8 h-8 bg-[var(--color-primary-500)] rounded-lg flex items-center justify-center text-white shadow-lg shadow-[var(--color-primary-500)]/30">
             <Building size={16} />
           </div>
           <span className="font-bold text-lg">{tenant.shortName}</span>
@@ -152,7 +144,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
         <div className="md:hidden fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-40 flex justify-end">
           <div className="bg-white w-4/5 h-full shadow-2xl flex flex-col animate-in slide-in-from-right-full duration-300">
             <div className="p-6 border-b border-stone-100 flex items-center gap-3">
-              <div className="w-10 h-10 bg-[var(--color-primary-500)] rounded-xl flex items-center justify-center text-white shadow-md">
+              <div className="w-10 h-10 bg-[var(--color-primary-500)] rounded-xl flex items-center justify-center text-white shadow-lg shadow-[var(--color-primary-500)]/30">
                 <Building size={20} />
               </div>
               <div>
@@ -162,46 +154,25 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
             </div>
             
             <nav className="p-4 space-y-2 overflow-y-auto flex-1">
-              {filteredMenu.map(item => (
-                <div key={item.id} className="space-y-1">
+              {filteredMenu.map(item => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
                   <button
+                    key={item.id}
                     onClick={() => {
-                      if (item.subItems) {
-                        toggleExpand(item.id);
-                      } else {
-                        setActiveTab(item.id);
-                        setIsMobileMenuOpen(false);
-                      }
+                      setActiveTab(item.id);
+                      setIsMobileMenuOpen(false);
                     }}
                     className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-base font-semibold transition-all ${
-                      activeTab === item.id ? 'bg-[var(--color-primary-50)] text-[var(--color-primary-600)]' : 'text-stone-600 active:bg-stone-50'
+                      isActive ? 'bg-[var(--color-primary-50)] text-[var(--color-primary-600)]' : 'text-stone-600 active:bg-stone-50'
                     }`}
                   >
-                    <item.icon size={22} className={activeTab === item.id ? 'text-[var(--color-primary-600)]' : 'text-stone-400'} />
+                    <Icon size={22} className={isActive ? 'text-[var(--color-primary-600)]' : 'text-stone-400'} />
                     {item.label}
-                    {item.subItems && (
-                      <Menu size={18} className={`ml-auto transition-transform ${expandedItems.includes(item.id) ? 'rotate-90' : ''}`} />
-                    )}
                   </button>
-                  
-                  {item.subItems && expandedItems.includes(item.id) && (
-                    <div className="pl-14 space-y-1 pb-2">
-                      {item.subItems.map(sub => (
-                         <button
-                           key={sub}
-                           onClick={() => {
-                             setActiveTab('subjects');
-                             setIsMobileMenuOpen(false);
-                           }}
-                           className="w-full text-left py-2 text-stone-500 active:text-[var(--color-primary-600)] transition-colors text-sm"
-                         >
-                           {sub}
-                         </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </nav>
             <div className="p-6 border-t border-stone-100 bg-stone-50">
                <button
@@ -218,8 +189,18 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
 
       {/* Main Content Area */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto relative z-10 w-full h-screen custom-scrollbar">
-        <div className="max-w-[1400px] mx-auto h-full animate-in fade-in duration-500">
-          {children}
+        <div className="max-w-[1400px] mx-auto h-full">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
     </div>

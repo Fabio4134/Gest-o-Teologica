@@ -12,7 +12,7 @@ export interface UserProfile {
 export interface StudentDetails {
   uid: string;
   registrationNumber: string;
-  status: 'active' | 'inactive' | 'graduated';
+  status: 'active' | 'inactive' | 'graduated' | 'pending';
   enrollmentDate: string;
   phone?: string;
   address?: string;
@@ -39,9 +39,10 @@ export interface Course {
 
 export interface Attendance {
   id: string;
-  courseId: string;
+  subject_id: string;
   date: string;
-  presentStudents: string[];
+  present_student_ids: string[];
+  lesson_topic?: string;
 }
 
 export interface Question {
@@ -50,6 +51,8 @@ export interface Question {
   options: string[];
   correctOptionIndex: number;
   category: string;
+  subjectId?: string;
+  subject_id?: string; // For Supabase compatibility
 }
 
 export interface Exam {

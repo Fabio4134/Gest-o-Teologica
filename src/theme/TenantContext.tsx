@@ -22,12 +22,12 @@ const defaultTenants: Record<string, TenantConfig> = {
     shortName: 'Núcleo Cosme de Fárias',
     logoUrl: '/ibad-logo.png',
     colors: {
-      primary50: '#fff1f2',
-      primary100: '#fee2e2',
-      primary500: '#b91c1c', 
-      primary600: '#5c1010', // Dark Red from Landing Page
-      primary700: '#7f1d1d',
-      primary900: '#450a0a',
+      primary50: '#f5f3ff',
+      primary100: '#ede9fe',
+      primary500: '#8b5cf6', 
+      primary600: '#7c3aed', // Lilac/Violet
+      primary700: '#6d28d9',
+      primary900: '#4c1d95',
     }
   },
 
@@ -53,12 +53,12 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => {
     // Inject CSS variables for the current tenant colors
     const root = document.documentElement;
-    root.style.setProperty('--primary-50', tenant.colors.primary50);
-    root.style.setProperty('--primary-100', tenant.colors.primary100);
-    root.style.setProperty('--primary-500', tenant.colors.primary500);
-    root.style.setProperty('--primary-600', tenant.colors.primary600);
-    root.style.setProperty('--primary-700', tenant.colors.primary700);
-    root.style.setProperty('--primary-900', tenant.colors.primary900);
+    root.style.setProperty('--color-primary-50', tenant.colors.primary50);
+    root.style.setProperty('--color-primary-100', tenant.colors.primary100);
+    root.style.setProperty('--color-primary-500', tenant.colors.primary500);
+    root.style.setProperty('--color-primary-600', tenant.colors.primary600);
+    root.style.setProperty('--color-primary-700', tenant.colors.primary700);
+    root.style.setProperty('--color-primary-900', tenant.colors.primary900);
     
     // Update document title
     document.title = `${tenant.name} - Plataforma de Vendas e Gestão`;
