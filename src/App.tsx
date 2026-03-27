@@ -957,35 +957,33 @@ const QuestionBankView = () => {
                       return;
                     }
 
-                    const mappedQs = qs.map(q => ({
-                      text: q.text,
-                      options: q.options || ['', '', '', ''],
-                      correct_option_index: q.correctOptionIndex || 0,
-                      subject_id: finalSubjectId, 
-                      category: 'IA'
-                    }));
+                    const mappedQs = qs.map(q => {
+                      // Serialização básica para tipos complexos se colunas extras não existirem no DB
+                      let finalText = q.text;
+                      if (q.tipo === 'colunas' && q.pares) {
+                        finalText += '\n\n' + q.pares.map((p:any, i:number) => `${i+1}. ${p.coluna_a} <-> ( ) ${p.coluna_b}`).join('\n');
+                      } else if (q.tipo === 'ordenacao' && q.itens_ordenacao) {
+                        finalText += '\n\nItens para ordenar:\n' + q.itens_ordenacao.map((item:string) => `( ) ${item}`).join('\n');
+                      }
+
+                      return {
+                        text: finalText,
+                        options: q.options || ['', '', '', ''],
+                        correct_option_index: q.correctOptionIndex !== undefined ? q.correctOptionIndex : (q.resposta_correta === 'V' ? 0 : 0),
+                        explanation: q.explanation || q.justificativa || '',
+                        subject_id: finalSubjectId,
+                        category: 'IA',
+                        difficulty: q.difficulty || 'Médio',
+                        bloom_level: q.bloom_level || 2
+                      };
+                    });
                     
                     console.log(`Importando ${mappedQs.length} questões para a disciplina ID: ${finalSubjectId}`);
                     const { error } = await supabase.from('questions').insert(mappedQs);
                     
                     if (error) {
-                      console.error("Erro na importação (Tentativa 1):", error);
-                      // Fallback para subjectId (camelCase)
-                      const retryQs = mappedQs.map(q => ({
-                        text: q.text,
-                        options: q.options,
-                        correct_option_index: q.correct_option_index,
-                        subjectId: finalSubjectId,
-                        category: q.category
-                      }));
-                      const { error: error2 } = await supabase.from('questions').insert(retryQs);
-                      
-                      if (error2) {
-                         alert("Falha Crítica na Importação: " + error2.message);
-                      } else {
-                         alert("Sucesso! Questões importadas com mapeamento alternativo.");
-                         setShowAIAssistant(false);
-                      }
+                      console.error("Erro na importação:", error);
+                      alert("Falha na Importação: " + error.message);
                     } else {
                       alert(`Sucesso! ${mappedQs.length} questões adicionadas ao seu Banco de Questões.`);
                       setShowAIAssistant(false);

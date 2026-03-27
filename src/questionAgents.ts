@@ -69,7 +69,7 @@ export interface GeneratedQuestion {
   feedback_options: string[];
   subject_id?: string;
   // Novos campos para QuizTheos Pro
-  tipo?: string;
+  tipo: 'multipla_escolha' | 'vf' | 'dissertativa' | 'lacunas' | 'colunas' | 'situacional' | 'analise_texto' | 'ordenacao';
   referencia_biblica?: string;
   referencia_bibliografica?: string;
   pares?: { coluna_a: string; coluna_b: string }[];
@@ -360,21 +360,23 @@ INSTRUÇÕES ADICIONAIS: ${config.instrucoes}
 
 TIPOS DE QUESTÃO SOLICITADOS: ${config.types.join(', ')}
 
-FORMATOS JSON POR TIPO:
-- multipla_escolha: { "text": string, "options": string[], "correctOptionIndex": number, "explanation": string }
-- vf: { "text": string, "correctOptionIndex": 0 (Verdadeiro) ou 1 (Falso), "explanation": string }
-- dissertativa: { "text": string, "explanation": "Critérios de correção/Resposta esperada" }
-- lacunas: { "text": "Texto com ___", "texto_lacuna": "Texto original", "explanation": string, "correctOptionIndex": 0 }
-- colunas: { "text": "Enunciado", "pares": [{ "coluna_a": "Link A", "coluna_b": "Link B" }], "explanation": string }
-- ordenacao: { "text": "Enunciado", "itens_ordenacao": string[], "ordem_correta": string[], "explanation": string }
+FORMATOS JSON POR TIPO (ESTRUTURA RÍGIDA NA CHAVE "questions"):
+- multipla_escolha: { "tipo": "multipla_escolha", "text": string, "options": string[], "correctOptionIndex": number, "explanation": string }
+- vf: { "tipo": "vf", "text": string, "correctOptionIndex": 0 (Verdadeiro) ou 1 (Falso), "explanation": string }
+- dissertativa: { "tipo": "dissertativa", "text": string, "explanation": "Critérios de correção/Resposta esperada" }
+- lacunas: { "tipo": "lacunas", "text": "Frase com ___", "texto_lacuna": "palavra_oculta", "explanation": string }
+- colunas: { "tipo": "colunas", "text": "Enunciado", "pares": [{ "coluna_a": "Link A", "coluna_b": "Link B" }], "explanation": string }
+- ordenacao: { "tipo": "ordenacao", "text": "Ordene os eventos:", "itens_ordenacao": ["B", "A", "C"], "ordem_correta": ["A", "B", "C"], "explanation": string }
+- situacional: { "tipo": "situacional", "text": "Cenário Pastoral...", "explanation": "Resposta/Conduta esperada" }
+- analise_texto: { "tipo": "analise_texto", "text": "Analise o texto [Citação]: [Pergunta]", "explanation": "Exegese esperada" }
 
-Gere EXATAMENTE ${config.quantity} questões NO TOTAL, distribuídas entre os tipos solicitados.
+Gere EXATAMENTE ${config.quantity} questões NO TOTAL.
 Retorne APENAS JSON válido no formato { "questions": [...] }.`;
 
   const userPrompt = `TEMA OBRIGATÓRIO: ${config.subjectName}
 MATERIAL DE REFERÊNCIA (PREVALECE SOBRE TUDO):
 ---
-${rawText.substring(0, 25000)}
+${rawText.substring(0, 40000)}
 ---
 
 DIRETRIZ: Se houver MATERIAL DE REFERÊNCIA, use-o como base única. Se não houver, use o TEMA OBRIGATÓRIO.

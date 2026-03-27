@@ -134,10 +134,10 @@ export const QuizTheosPro: React.FC<QuizTheosProProps> = ({ subjects, selectedSu
         questionario: questions.map((q, i) => ({
           id: `Q${i+1}`,
           ...q,
-          tipo: q.options && q.options.length > 0 ? 'multipla_escolha' : 'vf',
+          tipo: q.tipo || (q.options && q.options.length > 0 ? 'multipla_escolha' : 'vf'),
           enunciado: q.text,
           opcoes: q.options ? q.options.map((opt, idx) => ({ letra: String.fromCharCode(65 + idx), texto: opt })) : [],
-          resposta_correta: q.options && q.options.length > 0 ? String.fromCharCode(65 + q.correctOptionIndex) : (q.correctOptionIndex === 0 ? 'V' : 'F'),
+          resposta_correta: q.ordem_correta ? q.ordem_correta.join(' > ') : (q.options && q.options.length > 0 ? String.fromCharCode(65 + q.correctOptionIndex) : (q.correctOptionIndex === 0 ? 'V' : 'F')),
           justificativa: q.explanation
         }))
       };
@@ -159,8 +159,9 @@ export const QuizTheosPro: React.FC<QuizTheosProProps> = ({ subjects, selectedSu
 
   const renderQuestion = (q: any) => (
     <div key={q.id} className="qt-q-card">
-      <div className="qt-q-num">{q.id}</div>
+      <div className="qt-q-num">QUESTÃO {q.id} · <span className="uppercase text-[9px] opacity-60 tracking-tighter">{q.tipo?.replace('_', ' ')}</span></div>
       <div className="qt-q-text">{q.enunciado}</div>
+      
       {q.tipo === 'multipla_escolha' && (
         <div className="qt-options">
           {q.opcoes.map((opt: any) => (
@@ -171,10 +172,54 @@ export const QuizTheosPro: React.FC<QuizTheosProProps> = ({ subjects, selectedSu
           ))}
         </div>
       )}
+
       {q.tipo === 'vf' && (
         <div className="qt-options-vf">
           <div className={`qt-btn-sec ${q.resposta_correta === 'V' ? 'active-correct' : ''}`}>( V )</div>
           <div className={`qt-btn-sec ${q.resposta_correta === 'F' ? 'active-correct' : ''}`}>( F )</div>
+        </div>
+      )}
+
+      {q.tipo === 'colunas' && q.pares && (
+        <div className="qt-colunas-grid">
+          <div className="qt-col-side">
+            {q.pares.map((p: any, idx: number) => (
+              <div key={idx} className="qt-col-item">
+                <span className="qt-col-ball">( {idx + 1} )</span> {p.coluna_a}
+              </div>
+            ))}
+          </div>
+          <div className="qt-col-side">
+            {q.pares.map((p: any, idx: number) => (
+              <div key={idx} className="qt-col-item">
+                <span className="qt-col-ball">( &nbsp; )</span> {p.coluna_b}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {q.tipo === 'lacunas' && (
+        <div className="qt-lacuna-box">
+          <div className="qt-lacuna-hint">Preencha as lacunas no texto acima.</div>
+        </div>
+      )}
+
+      {q.tipo === 'ordenacao' && q.itens_ordenacao && (
+        <div className="qt-ord-list">
+          {q.itens_ordenacao.map((item: string, idx: number) => (
+            <div key={idx} className="qt-ord-item">
+              <span className="qt-col-ball">( &nbsp; )</span> {item}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {q.tipo === 'situacional' || q.tipo === 'analise_texto' || q.tipo === 'dissertativa' && (
+        <div className="qt-dissert-box">
+          <div className="qt-line-placeholder"></div>
+          <div className="qt-line-placeholder"></div>
+          <div className="qt-line-placeholder hidden-mobile"></div>
         </div>
       )}
     </div>
@@ -257,9 +302,21 @@ export const QuizTheosPro: React.FC<QuizTheosProProps> = ({ subjects, selectedSu
             <div>
               <label className="qt-field-label">📋 Tipos de Questão</label>
               <div className="qt-types-grid">
-                {[{id:'multipla_escolha', label:'Obj'}, {id:'vf', label:'V/F'}, {id:'dissertativa', label:'Dis'}].map(t => (
+                {[
+                  {id:'multipla_escolha', label:'Objetivas'}, 
+                  {id:'vf', label:'Verdadeiro/Falso'}, 
+                  {id:'dissertativa', label:'Dissertativas'},
+                  {id:'lacunas', label:'Lacunas'},
+                  {id:'colunas', label:'Relacionar'},
+                  {id:'ordenacao', label:'Ordenação'},
+                  {id:'situacional', label:'Estudo de Caso'},
+                  {id:'analise_texto', label:'Exegese'}
+                ].map(t => (
                   <div key={t.id} className={`qt-type-item ${selectedTypes.includes(t.id) ? 'active' : ''}`} onClick={() => toggleType(t.id)}>
-                    {t.label}
+                    <div className="qt-type-check">
+                      {selectedTypes.includes(t.id) && <Check size={10} />}
+                    </div>
+                    <span className="qt-type-label">{t.label}</span>
                   </div>
                 ))}
               </div>
